@@ -1,6 +1,12 @@
 <template>
   <div class="page">
-    <h1 class="page__title">Dues List</h1>
+    <div class="page__head">
+      <h1 class="page__title">Dues List</h1>
+      <div class="page__actions">
+        <AppButton variant="ghost" type="button" :disabled="sorted.length === 0" @click="exportCsv">CSV</AppButton>
+        <AppButton variant="ghost" type="button" :disabled="sorted.length === 0" @click="exportPdf">PDF</AppButton>
+      </div>
+    </div>
 
     <AppCard>
       <FilterPanel>
@@ -33,11 +39,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
-import { useDues } from '@/composables/useQueries'
+import { useDues, useSettings } from '@/composables/useQueries'
 import { useClientSort, usePagedList } from '@/composables/usePagedList'
+import { downloadCsv, duesListPdf } from '@/utils/pdf'
 
 const router = useRouter()
 const { data: duesData, isLoading: duesLoading } = useDues()
@@ -68,13 +76,45 @@ const paged = computed(() => {
 function goCollect(id: string): void {
   router.push({ path: '/admin/fees/collect', query: { studentId: id } })
 }
+
+const { data: settingsData } = useSettings()
+const schoolName = computed(() => settingsData.value?.data.schoolName || 'School')
+const todayStr = (): string => new Date().toISOString().slice(0, 10)
+
+// Export covers the full filtered list (not just the visible page).
+function exportCsv(): void {
+  downloadCsv(
+    `dues-list-${todayStr()}.csv`,
+    ['SL', 'Student', 'Roll', 'Due (Tk)'],
+    sorted.value.map((s, i) => [i + 1, s.name, String(s.roll ?? ''), Number(s.dueAmount) || 0]),
+  )
+}
+function exportPdf(): void {
+  duesListPdf({
+    schoolName: schoolName.value,
+    printedOn: todayStr(),
+    rows: sorted.value.map((s) => ({ name: s.name, roll: String(s.roll ?? ''), due: Number(s.dueAmount) || 0 })),
+  })
+}
 </script>
 
 <style scoped>
 .page__title {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
+  margin-bottom: 0;
+}
+.page__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+.page__actions {
+  display: flex;
+  gap: var(--spacing-sm);
 }
 .muted {
   color: var(--color-text-muted);

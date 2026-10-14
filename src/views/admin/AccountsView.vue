@@ -9,10 +9,91 @@
     </div>
 
     <div class="cards">
-      <AppCard><p class="stat-label">Total In</p><p class="stat-value stat-value--in">৳{{ fmt(summary?.totalIn) }}</p></AppCard>
-      <AppCard><p class="stat-label">Total Out</p><p class="stat-value stat-value--out">৳{{ fmt(summary?.totalOut) }}</p></AppCard>
-      <AppCard><p class="stat-label">Balance</p><p class="stat-value">৳{{ fmt(summary?.balance) }}</p></AppCard>
+      <AppCard><p class="stat-label">Opening Balance</p><p class="stat-value">৳{{ fmt(summary?.openingBalance) }}</p></AppCard>
+      <AppCard><p class="stat-label">Total In (period)</p><p class="stat-value stat-value--in">৳{{ fmt(summary?.totalIn) }}</p></AppCard>
+      <AppCard><p class="stat-label">Total Out (period)</p><p class="stat-value stat-value--out">৳{{ fmt(summary?.totalOut) }}</p></AppCard>
+      <AppCard><p class="stat-label">Closing Balance</p><p class="stat-value">৳{{ fmt(summary?.closingBalance ?? summary?.balance) }}</p></AppCard>
     </div>
+
+    <AppCard title="Opening Balance (carry-forward)">
+      <p class="muted head-hint">Bochor / period surur age haate koto taka chilo — ekbar likhun. Porer sob report e eta Opening hisebe auto asbe. <span v-if="openingCount">Ekhon {{ openingCount }} ta opening entry ache.</span></p>
+      <form class="head-form" @submit.prevent="saveOpening">
+        <input v-model.number="openingForm.amount" type="number" min="0" step="0.01" class="app-input__control" placeholder="Amount (৳)" required />
+        <input v-model="openingForm.date" type="date" class="app-input__control" />
+        <input v-model="openingForm.note" class="app-input__control" placeholder="Note, e.g. Cash in hand Jan 1" />
+        <AppButton type="submit" :disabled="savingOpening">{{ savingOpening ? 'Saving…' : 'Save Opening' }}</AppButton>
+      </form>
+      <p v-if="openingError" class="error">{{ openingError }}</p>
+    </AppCard>
+
+    <AppCard title="Head-wise totals (same date filter)">
+      <p class="muted head-hint">Kon head e koto dhukse / koto khoroch hoise — uporer From/To date dile ekhaner hisab o bodle jabe.</p>
+      <div class="head-cols">
+        <div>
+          <h4 class="head-col-title head-col-title--in">Income by head</h4>
+          <table class="table">
+            <thead><tr><th>Head</th><th>Entries</th><th>Total (৳)</th></tr></thead>
+            <tbody>
+              <tr v-for="r in incomeByHead" :key="r.head">
+                <td>{{ r.head }}</td>
+                <td class="muted">{{ r.count }}</td>
+                <td class="num-in">{{ fmt(r.amount) }}</td>
+              </tr>
+              <tr v-if="!incomeByHead.length"><td colspan="3" class="muted">No income in this period.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h4 class="head-col-title head-col-title--out">Expense by head</h4>
+          <table class="table">
+            <thead><tr><th>Head</th><th>Entries</th><th>Total (৳)</th></tr></thead>
+            <tbody>
+              <tr v-for="r in expenseByHead" :key="r.head">
+                <td>{{ r.head }}</td>
+                <td class="muted">{{ r.count }}</td>
+                <td class="num-out">{{ fmt(r.amount) }}</td>
+              </tr>
+              <tr v-if="!expenseByHead.length"><td colspan="3" class="muted">No expense in this period.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </AppCard>
+
+    <AppCard title="Income / Expense Heads">
+      <p class="muted head-hint">Proti school er head alada hote pare — ekhan theke nijer head banan. Egulo sudhu Accounts er jonno, student fee head er sathe somporko nai (oita <RouterLink to="/admin/fees">Fee Management</RouterLink> e).</p>
+      <form class="head-form" @submit.prevent="saveHead">
+        <select v-model="headForm.kind" class="app-input__control">
+          <option value="income">Income</option>
+          <option value="expense">Expense</option>
+        </select>
+        <input v-model="headForm.name" class="app-input__control" placeholder="New head name, e.g. Donation / Electricity bill" required />
+        <AppButton type="submit" :disabled="savingHead">{{ savingHead ? 'Saving…' : '+ Add Head' }}</AppButton>
+      </form>
+      <p v-if="headFormError" class="error">{{ headFormError }}</p>
+      <div class="head-cols">
+        <div>
+          <h4 class="head-col-title">Income heads</h4>
+          <ul class="head-list">
+            <li v-for="h in incomeHeads" :key="h.id">
+              <span>{{ h.name }}</span>
+              <button class="link-btn link-btn--danger" type="button" @click="removeHead(h.id, h.name)">Delete</button>
+            </li>
+            <li v-if="!incomeHeads.length" class="muted">No income heads yet.</li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="head-col-title">Expense heads</h4>
+          <ul class="head-list">
+            <li v-for="h in expenseHeads" :key="h.id">
+              <span>{{ h.name }}</span>
+              <button class="link-btn link-btn--danger" type="button" @click="removeHead(h.id, h.name)">Delete</button>
+            </li>
+            <li v-if="!expenseHeads.length" class="muted">No expense heads yet.</li>
+          </ul>
+        </div>
+      </div>
+    </AppCard>
 
     <AppCard>
       <FilterPanel>
@@ -24,6 +105,7 @@
         <input type="date" class="app-input__control" title="From" :value="from" @change="from = ($event.target as HTMLInputElement).value || undefined" />
         <input type="date" class="app-input__control" title="To" :value="to" @change="to = ($event.target as HTMLInputElement).value || undefined" />
         <input v-model="search" class="app-input__control" placeholder="Search head / note…" />
+        <AppButton variant="ghost" type="button" :disabled="!rows.length" @click="exportCsv">CSV</AppButton>
       </FilterPanel>
 
       <p v-if="isLoading" class="muted">Loading…</p>
@@ -33,7 +115,7 @@
           <tr><th>Date</th><th>Head</th><th>In (৳)</th><th>Out (৳)</th><th>Note</th><th></th></tr>
         </thead>
         <tbody>
-          <tr v-for="e in rows" :key="e.id">
+          <tr v-for="e in pagedRows" :key="e.id">
             <td>{{ e.date }}</td>
             <td>{{ e.head }} <span v-if="e.refType !== 'manual'" class="auto-tag">auto</span></td>
             <td class="num-in">{{ e.kind === 'income' ? fmt(e.amount) : '—' }}</td>
@@ -50,19 +132,20 @@
               </button>
             </td>
           </tr>
-          <tr v-if="!rows.length">
+          <tr v-if="!pagedRows.length">
             <td colspan="6" class="muted">No entries yet.</td>
           </tr>
         </tbody>
-        <tfoot v-if="rows.length">
+        <tfoot v-if="pagedRows.length">
           <tr class="totals-row">
-            <td colspan="2"><strong>Total</strong></td>
-            <td><strong>{{ fmt(pageIn) }}</strong></td>
-            <td><strong>{{ fmt(pageOut) }}</strong></td>
+            <td colspan="2"><strong>Total (this page)</strong></td>
+            <td><strong>{{ fmt(pagedIn) }}</strong></td>
+            <td><strong>{{ fmt(pagedOut) }}</strong></td>
             <td colspan="2"></td>
           </tr>
         </tfoot>
       </table>
+      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="rows.length" />
     </AppCard>
 
     <Teleport to="body">
@@ -106,13 +189,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
-import { useCreateLedgerEntry, useDeleteLedgerEntry, useLedger, useLedgerHeads, useLedgerSummary } from '@/composables/useQueries'
+import { useCreateLedgerEntry, useCreateLedgerHead, useDeleteLedgerEntry, useDeleteLedgerHead, useLedger, useLedgerHeads, useLedgerSummary } from '@/composables/useQueries'
+import { usePagedList } from '@/composables/usePagedList'
 import { useToast } from '@/composables/useToast'
+import { downloadCsv } from '@/utils/pdf'
 
 const toast = useToast()
 const num = (v: unknown): number => Number(v) || 0
@@ -132,12 +218,61 @@ const params = computed(() => ({
 }))
 const { data, isLoading, isError } = useLedger(params)
 const rows = computed(() => data.value?.data ?? [])
-const pageIn = computed(() => rows.value.filter((e) => e.kind === 'income').reduce((s, e) => s + num(e.amount), 0))
-const pageOut = computed(() => rows.value.filter((e) => e.kind === 'expense').reduce((s, e) => s + num(e.amount), 0))
+const { page, perPage } = usePagedList(10)
+watch([kindFilter, search, from, to], () => {
+  page.value = 1
+})
+const pagedRows = computed(() => {
+  const start = (page.value - 1) * perPage.value
+  return rows.value.slice(start, start + perPage.value)
+})
+const pagedIn = computed(() => pagedRows.value.filter((e) => e.kind === 'income').reduce((s, e) => s + num(e.amount), 0))
+const pagedOut = computed(() => pagedRows.value.filter((e) => e.kind === 'expense').reduce((s, e) => s + num(e.amount), 0))
+
+function exportCsv(): void {
+  downloadCsv(
+    `ledger-${from.value || 'full'}-${to.value || 'today'}.csv`,
+    ['SL', 'Date', 'Kind', 'Head', 'Amount (Tk)', 'Source', 'Note'],
+    rows.value.map((e, i) => [i + 1, e.date, e.kind, e.head, num(e.amount), e.refType, e.note || '']),
+  )
+  toast.success(`${rows.value.length} entries exported`)
+}
 
 const sumParams = computed(() => ({ from: from.value, to: to.value }))
 const { data: sumData } = useLedgerSummary(sumParams)
 const summary = computed(() => sumData.value?.data)
+const incomeByHead = computed(() => (summary.value?.byHead ?? []).filter((r) => r.kind === 'income'))
+const expenseByHead = computed(() => (summary.value?.byHead ?? []).filter((r) => r.kind === 'expense'))
+const openingCount = computed(() => (summary.value?.byHead ?? []).filter((r) => r.head === 'Opening Balance').reduce((s, r) => s + r.count, 0))
+
+// Opening balance — one-time carry-forward (saved as income / Opening Balance head).
+const openingForm = reactive({ amount: 0, date: '', note: '' })
+const openingError = ref('')
+const savingOpening = ref(false)
+
+async function saveOpening(): Promise<void> {
+  openingError.value = ''
+  if (!(num(openingForm.amount) > 0)) {
+    openingError.value = 'Amount must be greater than 0.'
+    return
+  }
+  savingOpening.value = true
+  try {
+    await createEntry({
+      kind: 'income',
+      head: 'Opening Balance',
+      amount: num(openingForm.amount),
+      date: openingForm.date || undefined,
+      note: openingForm.note.trim() || 'Opening balance carry-forward',
+    })
+    toast.success('Opening balance saved')
+    Object.assign(openingForm, { amount: 0, date: '', note: '' })
+  } catch (e) {
+    openingError.value = e instanceof Error ? e.message : 'Save failed'
+  } finally {
+    savingOpening.value = false
+  }
+}
 
 const form = reactive({
   open: false,
@@ -146,6 +281,44 @@ const form = reactive({
 })
 const { data: headData } = useLedgerHeads(() => form.kind)
 const headOptions = computed(() => headData.value?.data ?? [])
+
+// Heads manager — school-wise custom income/expense heads (separate from fee heads).
+const { data: allHeadsData } = useLedgerHeads()
+const incomeHeads = computed(() => (allHeadsData.value?.data ?? []).filter((h) => h.kind === 'income'))
+const expenseHeads = computed(() => (allHeadsData.value?.data ?? []).filter((h) => h.kind === 'expense'))
+const headForm = reactive({ kind: 'expense' as 'income' | 'expense', name: '' })
+const headFormError = ref('')
+const savingHead = ref(false)
+const { mutateAsync: createHead } = useCreateLedgerHead()
+const { mutateAsync: deleteHead } = useDeleteLedgerHead()
+
+async function saveHead(): Promise<void> {
+  headFormError.value = ''
+  const name = headForm.name.trim()
+  if (!name) {
+    headFormError.value = 'Head name is required.'
+    return
+  }
+  savingHead.value = true
+  try {
+    await createHead({ name, kind: headForm.kind })
+    toast.success('Head saved')
+    headForm.name = ''
+  } catch (e) {
+    headFormError.value = e instanceof Error ? e.message : 'Save failed'
+  } finally {
+    savingHead.value = false
+  }
+}
+async function removeHead(id: number, name: string): Promise<void> {
+  if (!window.confirm(`Delete head "${name}"?`)) return
+  try {
+    await deleteHead(id)
+    toast.success('Head deleted')
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed')
+  }
+}
 const formError = ref('')
 const saving = ref(false)
 const { mutateAsync: createEntry } = useCreateLedgerEntry()
@@ -219,7 +392,7 @@ async function doRemove(): Promise<void> {
 }
 .cards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
 }
@@ -321,6 +494,57 @@ async function doRemove(): Promise<void> {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+.head-hint {
+  font-size: var(--font-size-sm);
+  margin: 0 0 var(--spacing-md);
+}
+.head-form {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-sm);
+}
+.head-form .app-input__control {
+  flex: 1;
+  min-width: 200px;
+}
+.head-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+@media (max-width: 700px) {
+  .head-cols {
+    grid-template-columns: 1fr;
+  }
+}
+.head-col-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--spacing-xs);
+}
+.head-col-title--in {
+  color: var(--color-success, green);
+}
+.head-col-title--out {
+  color: var(--color-danger);
+}
+.head-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.head-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
 }
 .kind-tabs {

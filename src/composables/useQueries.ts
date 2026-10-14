@@ -18,10 +18,11 @@ import {
   smsService,
   studentService,
   teacherService,
+  teacherSubjectService,
 } from '@/services'
 import type { StudentInput, TeacherInput } from '@/types/models'
 import type { ListParams } from '@/types/api'
-import type { AttendanceMark, ExamStatus, LeaveStatus, RoutineInput, SalaryRecord, SchoolEvent } from '@/types/models'
+import type { AttendanceMark, ExamStatus, ExamSubjectInput, LeaveStatus, RoutineInput, SalaryRecord, SchoolEvent, SubjectMarkInput } from '@/types/models'
 
 type ParamSource = ListParams | Ref<ListParams> | (() => ListParams)
 
@@ -177,11 +178,11 @@ function resolveId(source?: IdSource): string | undefined {
   return isRef(source) ? (source as Ref<string | undefined>).value : (source as string | undefined)
 }
 
-export function useSections(source?: IdSource) {
-  const key = computed(() => ['sections', resolveId(source) ?? 'all'])
+export function useSections(source?: IdSource, withStudents?: boolean) {
+  const key = computed(() => ['sections', resolveId(source) ?? 'all', withStudents ? 'nonempty' : 'all'])
   return useQuery({
     queryKey: key,
-    queryFn: () => academicService.sections(resolveId(source)),
+    queryFn: () => academicService.sections(resolveId(source), withStudents),
   })
 }
 
@@ -356,11 +357,13 @@ function resolveReactive<T>(source: MaybeReactive<T>): T {
 export function useRoutines(
   classId: MaybeReactive<string | undefined> = undefined,
   sectionId: MaybeReactive<string | null | undefined> = undefined,
+  routineType: MaybeReactive<'class' | 'exam' | undefined> = undefined,
 ) {
-  const key = computed(() => ['routines', resolveReactive(classId) ?? 'all', resolveReactive(sectionId) ?? 'all'])
+  const key = computed(() => ['routines', resolveReactive(classId) ?? 'all', resolveReactive(sectionId) ?? 'all', resolveReactive(routineType) ?? 'all'])
   return useQuery({
     queryKey: key,
-    queryFn: () => routineService.list(resolveReactive(classId), resolveReactive(sectionId)),
+    queryFn: () => routineService.list(resolveReactive(classId), resolveReactive(sectionId), resolveReactive(routineType)),
+    placeholderData: (prev) => prev,
   })
 }
 
@@ -372,11 +375,48 @@ export function useCreateRoutine() {
   })
 }
 
+export function useUpdateRoutine() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: RoutineInput }) => routineService.update(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['routines'] }),
+  })
+}
+
+export function useRoutine(id: MaybeReactive<string>) {
+  const key = computed(() => ['routine', resolveReactive(id)])
+  return useQuery({
+    queryKey: key,
+    queryFn: () => routineService.get(resolveReactive(id)),
+    enabled: computed(() => !!resolveReactive(id)),
+  })
+}
+
 export function useDeleteRoutine() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => routineService.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['routines'] }),
+  })
+}
+
+/** Who is assigned to teach one subject (routine form suggestion). */
+export function useSubjectTeachers(subjectId: MaybeReactive<string | null | undefined>) {
+  const key = computed(() => ['subject-teachers', resolveReactive(subjectId) ?? 'none'])
+  return useQuery({
+    queryKey: key,
+    queryFn: () => teacherSubjectService.listBySubject(resolveReactive(subjectId) as string),
+    enabled: computed(() => !!resolveReactive(subjectId)),
+  })
+}
+
+/** All subject assignments of one class (teacher names in subject dropdown). */
+export function useClassSubjectTeachers(classId: MaybeReactive<string | null | undefined>) {
+  const key = computed(() => ['class-subject-teachers', resolveReactive(classId) ?? 'none'])
+  return useQuery({
+    queryKey: key,
+    queryFn: () => teacherSubjectService.listByClass(resolveReactive(classId) as string),
+    enabled: computed(() => !!resolveReactive(classId)),
   })
 }
 
@@ -491,6 +531,17 @@ export function useStaffAttendance(date: MaybeReactive<string>) {
   })
 }
 
+/** One date's whole-school sheet for the Recent Summary drill-down. */
+export function useAttendanceDay(date: MaybeReactive<string | null>) {
+  const key = computed(() => ['attendance-day', resolveReactive(date)])
+  return useQuery({
+    queryKey: key,
+    queryFn: () => attendanceService.day(resolveReactive(date) as string),
+    enabled: computed(() => !!resolveReactive(date)),
+    placeholderData: (prev) => prev,
+  })
+}
+
 export function useSaveStaffAttendance() {
   const qc = useQueryClient()
   return useMutation({
@@ -547,9 +598,25 @@ export function useCreateExam() {
   return useMutation({
     mutationFn: (input: {
       name: string; examDate: string; classId: string; sectionId: string | null;
-      fullMarks: number; passMarks: number
+      departmentId?: string | null;
+      subjects: ExamSubjectInput[]
     }) => examService.create(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['exams'] }),
+  })
+}
+
+export function useUpdateExam() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: {
+      id: string; input: { name?: string; examDate?: string; subjects?: ExamSubjectInput[] }
+    }) => examService.update(id, input),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['exams'] })
+      qc.invalidateQueries({ queryKey: ['exam', vars.id] })
+      qc.invalidateQueries({ queryKey: ['result-entries'] })
+      qc.invalidateQueries({ queryKey: ['exam-results'] })
+    },
   })
 }
 
@@ -584,9 +651,21 @@ export function useResultEntries(examId: MaybeReactive<string>) {
 export function useSaveResultEntries() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ examId, entries }: { examId: string; entries: { studentId: string; marksObtained: number }[] }) =>
+    mutationFn: ({ examId, entries }: { examId: string; entries: { studentId: string; marks: SubjectMarkInput[] }[] }) =>
       examService.saveEntries(examId, entries),
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: ['result-entries', vars.examId] }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['result-entries', vars.examId] })
+      qc.invalidateQueries({ queryKey: ['exam-results', vars.examId] })
+    },
+  })
+}
+
+export function useExamResults(examId: MaybeReactive<string>) {
+  const key = computed(() => ['exam-results', resolveReactive(examId)])
+  return useQuery({
+    queryKey: key,
+    queryFn: () => examService.results(resolveReactive(examId)),
+    enabled: computed(() => !!resolveReactive(examId)),
   })
 }
 
@@ -840,6 +919,7 @@ export function useLedger(source: ParamSource = {}) {
   return useQuery({
     queryKey: keyOf('ledger', source),
     queryFn: () => ledgerService.list(resolveParams(source)),
+    placeholderData: (prev) => prev,
   })
 }
 
@@ -847,6 +927,7 @@ export function useLedgerSummary(source: ParamSource = {}) {
   return useQuery({
     queryKey: keyOf('ledger-summary', source),
     queryFn: () => ledgerService.summary(resolveParams(source)),
+    placeholderData: (prev) => prev,
   })
 }
 
@@ -879,6 +960,21 @@ export function useLedgerHeads(kind: MaybeReactive<string | undefined> = undefin
   return useQuery({
     queryKey: computed(() => ['ledger-heads', resolveReactive(kind) ?? 'all']),
     queryFn: () => ledgerService.heads(resolveReactive(kind)),
+  })
+}
+export function useCreateLedgerHead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { name: string; kind: 'income' | 'expense' }) =>
+      ledgerService.createHead(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ledger-heads'] }),
+  })
+}
+export function useDeleteLedgerHead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => ledgerService.removeHead(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ledger-heads'] }),
   })
 }
 export function usePaySalary() {

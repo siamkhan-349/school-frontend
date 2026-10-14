@@ -1,17 +1,16 @@
 <template>
-  <span class="avatar" :style="{ width: sizePx, height: sizePx }">
+  <span class="avatar" :style="{ width: sizePx, height: sizePx }" :title="name">
     <img v-if="photoUrl" :src="photoUrl" :alt="name" class="avatar__img" />
-    <UserRound v-else class="avatar__icon" :style="{ width: iconPx, height: iconPx }" />
+    <span v-else class="avatar__initial" :style="{ fontSize: initialPx }">{{ initial }}</span>
   </span>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { UserRound } from 'lucide-vue-next'
 
 /**
- * Teacher/staff photo with person-icon fallback: the backend image when
- * photoUrl exists, otherwise a neutral person icon badge.
+ * Teacher/staff photo with initial fallback: the backend image when
+ * photoUrl exists, otherwise the name initial on a neutral badge.
  */
 const props = withDefaults(
   defineProps<{
@@ -23,7 +22,11 @@ const props = withDefaults(
 )
 
 const sizePx = computed(() => `${props.size}px`)
-const iconPx = computed(() => `${Math.round(props.size * 0.55)}px`)
+const initialPx = computed(() => `${Math.round(props.size * 0.42)}px`)
+const initial = computed(() => {
+  const ch = (props.name || '').trim().charAt(0)
+  return ch ? ch.toUpperCase() : '?'
+})
 </script>
 
 <style scoped>
@@ -43,7 +46,9 @@ const iconPx = computed(() => `${Math.round(props.size * 0.55)}px`)
   height: 100%;
   object-fit: cover;
 }
-.avatar__icon {
-  flex-shrink: 0;
+.avatar__initial {
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
 }
 </style>

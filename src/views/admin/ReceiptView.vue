@@ -2,7 +2,10 @@
   <div class="receipt">
     <div class="receipt__toolbar">
       <RouterLink to="/admin/payments" class="back">‹ Back</RouterLink>
-      <AppButton @click="print">Print Receipt</AppButton>
+      <div class="receipt__actions">
+        <AppButton variant="ghost" @click="downloadPdf">PDF</AppButton>
+        <AppButton @click="print">Print Receipt</AppButton>
+      </div>
     </div>
     <p v-if="isLoading" class="muted">Loading…</p>
     <p v-else-if="!payment" class="error">Receipt not found.</p>
@@ -50,6 +53,8 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import { useReceipt, useSettings, useStudent, useStudentPayments } from '@/composables/useQueries'
+import { printWithTitle } from '@/utils/print'
+import { receiptPdf } from '@/utils/pdf'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id ?? ''))
@@ -125,7 +130,30 @@ const stillDues = computed(() => {
 const stillTotal = computed(() => stillDues.value.reduce((s, r) => s + r.due, 0))
 
 function print(): void {
-  window.print()
+  const p = payment.value
+  printWithTitle(p ? `Fee Receipt - ${p.receiptNumber} - ${p.studentName}` : 'Fee Receipt')
+}
+function downloadPdf(): void {
+  const p = payment.value
+  if (!p) return
+  receiptPdf({
+    schoolName: settings.value?.schoolName ?? 'School',
+    address: settings.value?.address ?? '',
+    phone: settings.value?.phone ?? '',
+    receiptNumber: p.receiptNumber,
+    studentName: p.studentName,
+    date: p.paymentDate,
+    status: p.status,
+    amount: Number(p.amount),
+    discount: Number(p.discount),
+    paid: Number(p.paid),
+    due: Number(p.due),
+    lines: (p.breakdown ?? []).map((l) => ({
+      name: l.feeName || l.feeType,
+      amount: Number(l.amount),
+      paid: Number(l.paid),
+    })),
+  })
 }
 </script>
 
@@ -140,6 +168,10 @@ function print(): void {
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
+}
+.receipt__actions {
+  display: flex;
+  gap: var(--spacing-sm);
 }
 .back {
   color: var(--color-primary);

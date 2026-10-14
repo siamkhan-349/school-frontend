@@ -2,7 +2,11 @@
   <div class="page">
     <div class="page__head">
       <h1 class="page__title">Students</h1>
-      <AppButton @click="goAdmit">+ Admit Student</AppButton>
+      <div class="page__actions">
+        <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportCsv">{{ exporting ? 'Loading…' : 'CSV' }}</AppButton>
+        <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportPdf">{{ exporting ? 'Loading…' : 'PDF' }}</AppButton>
+        <AppButton @click="goAdmit">+ Admit Student</AppButton>
+      </div>
     </div>
 
     <AppCard>
@@ -92,9 +96,13 @@ import {
   useDeleteStudent,
   useDepartments,
   useSections,
+  useSettings,
   useStudents,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { downloadCsv, studentsPdf } from '@/utils/pdf'
+import { studentService } from '@/services'
+import type { Student } from '@/types/models'
 
 const toast = useToast()
 const filters = reactive({ search: '', gender: '', classId: '', sectionId: '', departmentId: '' })
@@ -153,6 +161,69 @@ function goEdit(id: string): void {
   router.push(`/admin/students/${id}/edit`)
 }
 
+// ---------- export (full filtered list, backend caps at 500) ----------
+const { data: settingsData } = useSettings()
+const schoolName = computed(() => settingsData.value?.data.schoolName || 'School')
+const exporting = ref(false)
+
+async function fetchAllFiltered(): Promise<Student[]> {
+  const res = await studentService.list({
+    search: filters.search || undefined,
+    gender: filters.gender || undefined,
+    classId: filters.classId || undefined,
+    sectionId: filters.sectionId || undefined,
+    departmentId: filters.departmentId || undefined,
+    page: 1,
+    perPage: 500,
+  })
+  return res.data.items ?? []
+}
+function filterNote(): string {
+  const parts = [
+    filters.classId ? classLabel(filters.classId) : '',
+    filters.search ? `search:${filters.search}` : '',
+  ].filter(Boolean)
+  return parts.join(' ') || 'All students'
+}
+async function exportCsv(): Promise<void> {
+  exporting.value = true
+  try {
+    const all = await fetchAllFiltered()
+    downloadCsv(
+      `students-${Date.now()}.csv`,
+      ['SL', 'Name', 'Roll', 'Class', 'Dept', 'Phone', 'Guardian', 'Due (Tk)', 'Status'],
+      all.map((s, i) => [i + 1, s.name, String(s.roll ?? ''), classLabel(s.classId), deptLabel(s.departmentId), s.phone || '', s.guardianName || '', Number(s.dueAmount) || 0, s.status]),
+    )
+    toast.success(`${all.length} students exported`)
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Export failed')
+  } finally {
+    exporting.value = false
+  }
+}
+async function exportPdf(): Promise<void> {
+  exporting.value = true
+  try {
+    const all = await fetchAllFiltered()
+    studentsPdf({
+      schoolName: schoolName.value,
+      filterNote: filterNote(),
+      rows: all.map((s) => ({
+        name: s.name,
+        roll: String(s.roll ?? ''),
+        classLabel: classLabel(s.classId),
+        dept: deptLabel(s.departmentId),
+        due: Number(s.dueAmount) || 0,
+        status: s.status,
+      })),
+    })
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Export failed')
+  } finally {
+    exporting.value = false
+  }
+}
+
 // ---------- delete ----------
 const confirm = ref({ open: false, id: '', message: '' })
 const deleting = ref(false)
@@ -182,6 +253,13 @@ async function doDelete(): Promise<void> {
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+.page__actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
 }
 .page__title {
   font-size: var(--font-size-2xl);

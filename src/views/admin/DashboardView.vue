@@ -30,14 +30,42 @@
       </AppCard>
     </div>
 
+    <AppCard v-if="!isLoading && !isError" class="panel-card">
+      <div class="panel-card__header">
+        <h2 class="panel-card__title">{{ stripTitle }}</h2>
+        <div class="panel-card__tools">
+          <input v-model="stripPicked" type="date" class="app-input__control strip-date" title="Pick a day" />
+        </div>
+      </div>
+      <div class="att-strip" :class="{ 'att-strip--fetching': dayFetching }">
+        <button type="button" class="att-chip att-chip--present" @click="openDrill('present')">
+          <span class="att-chip__value">{{ todayCounts.present }}</span>
+          <span class="att-chip__label">Present</span>
+        </button>
+        <button type="button" class="att-chip att-chip--absent" @click="openDrill('absent')">
+          <span class="att-chip__value">{{ todayCounts.absent }}</span>
+          <span class="att-chip__label">Absent</span>
+        </button>
+        <button type="button" class="att-chip att-chip--late" @click="openDrill('late')">
+          <span class="att-chip__value">{{ todayCounts.late }}</span>
+          <span class="att-chip__label">Late</span>
+        </button>
+        <button type="button" class="att-chip att-chip--leave" @click="openDrill('leave')">
+          <span class="att-chip__value">{{ todayCounts.leave }}</span>
+          <span class="att-chip__label">Leave</span>
+        </button>
+      </div>
+      <p class="att-note">Card e click korle kara kara — full page talika khulbe.</p>
+    </AppCard>
+
     <div v-if="!isLoading && !isError" class="admin-dashboard__grid">
-      <AppCard v-if="revenueChart" class="panel-card">
+      <AppCard v-if="collectionChart" class="panel-card">
         <div class="panel-card__header">
-          <h2 class="panel-card__title">Revenue — last 6 months</h2>
+          <h2 class="panel-card__title">Collections — last 6 months</h2>
           <RouterLink to="/admin/reports" class="panel-card__link">Reports</RouterLink>
         </div>
         <div class="chart-canvas">
-          <Bar :data="revenueChart" :options="chartOptions" />
+          <Bar :data="collectionChart" :options="chartOptions" />
         </div>
       </AppCard>
 
@@ -138,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   BarElement,
   CategoryScale,
@@ -151,11 +179,14 @@ import {
   type ChartOptions,
 } from 'chart.js'
 import { Bar } from 'vue-chartjs'
+import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
 import { useChartPalette } from '@/composables/useChartPalette'
 import {
+  useAttendanceDay,
+  useAttendanceSummary,
   useClasses,
   useDashboard,
   useDues,
@@ -170,23 +201,26 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const { palette } = useChartPalette()
 const auth = useAuthStore()
+const router = useRouter()
 
 interface OverviewTotals {
   students: number
   activeStudents: number
   activeTeachers: number
-  revenueThisMonth: number
+  collectedThisMonth: number
+  /** Deprecated alias — backend still sends it. */
+  revenueThisMonth?: number
 }
-interface RevenueMonth {
+interface CollectedMonth {
   month: string
   label: string
   amount: number
 }
 interface AttendanceRateRow {
   unitId: string
-  batchId: string
+  sectionId: string
   classLabel: string
-  batchLabel: string
+  sectionLabel: string
   groupLabel: string
   percentage: number
   markedDays: number
@@ -213,7 +247,9 @@ const overview = computed(
       presentToday: number
       duesAmount: number
       totals: OverviewTotals
-      revenueByMonth: RevenueMonth[]
+      collectedByMonth: CollectedMonth[]
+      /** Deprecated alias — backend still sends it. */
+      revenueByMonth?: CollectedMonth[]
       attendanceRate: AttendanceRateRow[]
     },
 )
@@ -223,7 +259,7 @@ const totals = computed<OverviewTotals>(
       students: 0,
       activeStudents: 0,
       activeTeachers: 0,
-      revenueThisMonth: 0,
+      collectedThisMonth: 0,
     },
 )
 
@@ -246,6 +282,38 @@ const recentStudents = computed(() => recentData.value?.data.items ?? [])
 
 const { data: liveData } = useRecentAttendance(10)
 const liveAttendance = computed(() => liveData.value?.data ?? [])
+
+// ---------- Today's attendance strip (click a card → see WHO) ----------
+// Latest school day with marks (today isn't marked yet in the morning).
+// Picking a date overrides it — onno din dekhte chaile date bodlao.
+const { data: attSumData } = useAttendanceSummary()
+const stripPicked = ref('')
+const stripDate = computed(() => stripPicked.value || attSumData.value?.data?.[0]?.date || new Date().toISOString().slice(0, 10))
+const stripTitle = computed(() => {
+  const now = new Date()
+  const today = now.toISOString().slice(0, 10)
+  const yd = new Date(now)
+  yd.setDate(now.getDate() - 1)
+  const yesterday = yd.toISOString().slice(0, 10)
+  const d = stripDate.value
+  // Hazira na thakle (sob 0) default latest din = yesterday → Yesterday dekhay.
+  // Aajker hazira start hole latest = today → Today dekhay.
+  if (d === today) return `Today's Attendance — ${d}`
+  if (d === yesterday) return `Yesterday's Attendance — ${d}`
+  return `Attendance — ${d}`
+})
+const { data: dayData, isFetching: dayFetching } = useAttendanceDay(stripDate)
+const todaySheet = computed(() => dayData.value?.data ?? [])
+const todayCounts = computed(() => ({
+  present: todaySheet.value.filter((r) => r.status === 'present').length,
+  absent: todaySheet.value.filter((r) => r.status === 'absent').length,
+  late: todaySheet.value.filter((r) => r.status === 'late').length,
+  leave: todaySheet.value.filter((r) => r.status === 'leave' || r.status === 'holiday').length,
+}))
+type DrillStatus = 'present' | 'absent' | 'late' | 'leave'
+function openDrill(status: DrillStatus): void {
+  router.push({ path: `/admin/attendance/day/${stripDate.value}`, query: { status } })
+}
 
 const { data: examData } = useExams({ perPage: 5 })
 const recentExams = computed(() => (examData.value?.data.items ?? []).slice(0, 5))
@@ -275,8 +343,8 @@ const statCards = computed<StatCard[]>(() => [
     to: '/admin/teachers',
   },
   {
-    label: 'Revenue This Month',
-    value: formatTaka(totals.value.revenueThisMonth ?? 0),
+    label: 'Collected This Month',
+    value: formatTaka(totals.value.collectedThisMonth ?? totals.value.revenueThisMonth ?? 0),
     note: 'collected',
     to: '/admin/payments',
   },
@@ -304,8 +372,8 @@ const chartOptions: ChartOptions<'bar'> = {
   },
 }
 
-const revenueChart = computed<ChartData<'bar'> | null>(() => {
-  const items = overview.value.revenueByMonth ?? []
+const collectionChart = computed<ChartData<'bar'> | null>(() => {
+  const items = overview.value.collectedByMonth ?? overview.value.revenueByMonth ?? []
   if (!items.length) return null
   return {
     labels: items.map((i) => i.label),
@@ -448,6 +516,16 @@ const rateChartOptions = computed<ChartOptions<'bar'>>(() => ({
 .panel-card__link:hover {
   text-decoration: underline;
 }
+.panel-card__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+.strip-date {
+  max-width: 150px;
+  height: 32px;
+  font-size: var(--font-size-xs);
+}
 .panel-card__empty {
   margin: 0;
   padding: var(--spacing-lg) 0;
@@ -532,6 +610,58 @@ const rateChartOptions = computed<ChartOptions<'bar'>>(() => ({
   color: var(--color-primary);
   white-space: nowrap;
   text-transform: capitalize;
+}
+.att-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--spacing-md);
+  transition: opacity 0.15s ease;
+}
+.att-strip--fetching {
+  opacity: 0.55;
+}
+.att-note {
+  margin: var(--spacing-sm) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+.att-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  font: inherit;
+  cursor: pointer;
+}
+.att-chip:hover {
+  border-color: var(--color-primary);
+}
+.att-chip__value {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  line-height: 1;
+}
+.att-chip__label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+.att-chip--present .att-chip__value {
+  color: var(--color-success, green);
+}
+.att-chip--absent .att-chip__value {
+  color: var(--color-danger);
+}
+.att-chip--late .att-chip__value {
+  color: var(--color-warning, #b45309);
+}
+.drill-sub {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
 }
 @media (max-width: 1024px) {
   .admin-dashboard__stats {

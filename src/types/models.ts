@@ -259,9 +259,35 @@ export interface Exam {
   examDate: string
   classId: string
   sectionId: string | null
+  departmentId?: string | null
   fullMarks: number
   passMarks: number
   status: ExamStatus
+  subjects: ExamSubject[]
+}
+
+export interface ExamSubject {
+  id: string
+  name: string
+  fullMarks: number
+  passMarks: number
+  cqFull: number
+  cqPass: number
+  mcqFull: number
+  mcqPass: number
+  passRule: 'separate' | 'combine'
+  hasSplit: boolean
+}
+
+export interface ExamSubjectInput {
+  name: string
+  fullMarks: number
+  passMarks: number
+  cqFull?: number
+  cqPass?: number
+  mcqFull?: number
+  mcqPass?: number
+  passRule?: 'separate' | 'combine'
 }
 
 export interface ResultEntry {
@@ -271,6 +297,29 @@ export interface ResultEntry {
   studentName: string
   marksObtained: number
   grade: string
+}
+
+export interface SubjectMarkInput {
+  subjectId?: string
+  name?: string
+  cq?: number
+  mcq?: number
+  total?: number
+  absent?: boolean
+}
+
+export interface StudentSubjectMarks {
+  studentId: string
+  studentName: string
+  subjects: {
+    subjectId: string
+    name: string
+    cq: number
+    mcq: number
+    total: number
+    absent: boolean
+    entered: boolean
+  }[]
 }
 
 export type PaymentStatus = 'paid' | 'pending' | 'partial' | 'cancelled'
@@ -321,12 +370,20 @@ export interface Routine {
   sectionId: string | null
   subjectId: string | null
   subjectLabel: string
+  /** All subjects this slot covers (primary first). */
+  subjects: string[]
   teacherId: string | null
+  /** All teachers (primary first). */
+  teacherIds: string[]
   teacherName: string
   room: string
+  title: string
   day: WeekDay
+  date: string
   startTime: string
   endTime: string
+  status: 'active' | 'inactive'
+  routineType: 'class' | 'exam'
 }
 
 export interface RoutineInput {
@@ -334,12 +391,20 @@ export interface RoutineInput {
   sectionId: string | null
   subjectId: string | null
   subjectLabel: string
+  subjects?: string[]
   teacherId: string | null
+  teacherIds?: string[]
   teacherName: string
   room: string
+  title?: string
   day: WeekDay
+  /** Class mode: same period on several weekdays (one row per day). */
+  days?: WeekDay[]
+  date?: string
   startTime: string
   endTime: string
+  status?: 'active' | 'inactive'
+  routineType?: 'class' | 'exam'
 }
 
 // ---------- attendance ----------
@@ -503,6 +568,8 @@ export interface LedgerSummary {
   totalIn: number
   totalOut: number
   balance: number
+  openingBalance: number
+  closingBalance: number
   count: number
   byHead: { head: string; kind: string; amount: number; count: number }[]
   byMonth: { month: string; income: number; expense: number }[]

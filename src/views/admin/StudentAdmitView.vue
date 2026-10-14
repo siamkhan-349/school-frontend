@@ -188,6 +188,7 @@ import {
   useDepartments,
   useEnsureSection,
   useFeeCatalog,
+  useSections,
   useSubjects,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
@@ -427,6 +428,8 @@ async function save(): Promise<void> {
   if (!validate()) return
   saving.value = true
   try {
+    // Static A/B/C/D, default A. The section row is found-or-created so the
+    // section exists everywhere else exactly when it gains students.
     const section = await ensureSection({ classId: form.classId, label: form.sectionLabel })
     const created = await createStudent({
       name: form.name.trim(),

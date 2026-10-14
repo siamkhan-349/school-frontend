@@ -148,10 +148,10 @@
           <tbody>
             <tr v-for="r in summary" :key="r.date">
               <td>{{ r.date }}</td>
-              <td>{{ r.present }}</td>
-              <td>{{ r.absent }}</td>
-              <td>{{ r.late }}</td>
-              <td>{{ r.leave }}</td>
+              <td><button class="count-btn count-btn--present" type="button" @click="openDrill(r.date, 'present')">{{ r.present }}</button></td>
+              <td><button class="count-btn count-btn--absent" type="button" @click="openDrill(r.date, 'absent')">{{ r.absent }}</button></td>
+              <td><button class="count-btn count-btn--late" type="button" @click="openDrill(r.date, 'late')">{{ r.late }}</button></td>
+              <td><button class="count-btn count-btn--leave" type="button" @click="openDrill(r.date, 'leave')">{{ r.leave }}</button></td>
             </tr>
             <tr v-if="summary.length === 0">
               <td colspan="5" class="muted">No attendance records yet.</td>
@@ -193,6 +193,9 @@
           <AppButton variant="ghost" :disabled="reportRows.length === 0" @click="exportReportCSV">
             Export CSV
           </AppButton>
+          <AppButton variant="ghost" :disabled="reportRows.length === 0" @click="exportReportPDF">
+            PDF
+          </AppButton>
         </div>
         <p v-if="reportLoading" class="muted">Loading…</p>
         <table v-else class="table">
@@ -200,7 +203,7 @@
             <tr><th>Student</th><th>Present</th><th>Late</th><th>Absent</th><th>Days</th><th>Attendance</th><th></th></tr>
           </thead>
           <tbody>
-            <tr v-for="row in reportRows" :key="row.studentId">
+            <tr v-for="row in pagedReportRows" :key="row.studentId">
               <td>{{ row.studentName }}<span v-if="row.roll" class="muted"> · Roll {{ row.roll }}</span></td>
               <td>{{ row.present }}</td>
               <td>{{ row.late }}</td>
@@ -217,13 +220,15 @@
                 <button class="link-btn" type="button" @click="openStudentDetails({ id: row.studentId, name: row.studentName })">Details</button>
               </td>
             </tr>
-            <tr v-if="reportRows.length === 0">
+            <tr v-if="pagedReportRows.length === 0">
               <td colspan="7" class="muted">No attendance data in the selected range.</td>
             </tr>
           </tbody>
         </table>
+        <AppPagination v-if="!reportLoading" v-model:page="repPage" v-model:per-page="repPerPage" :total="reportRows.length" />
       </AppCard>
     </template>
+
   </div>
 </template>
 
@@ -232,6 +237,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
 import {
   useAttendanceReport,
   useAttendanceSummary,
@@ -240,12 +246,15 @@ import {
   useDepartments,
   useSaveStudentAttendance,
   useSections,
+  useSettings,
   useStudentAttendance,
   useStudents,
   useTapAttendance,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { usePagedList } from '@/composables/usePagedList'
 import { lastCardTap } from '@/composables/useCardScanner'
+import { attendanceReportPdf } from '@/utils/pdf'
 import type { AttendanceStatus } from '@/types/models'
 
 const STATUSES: AttendanceStatus[] = ['present', 'absent', 'late', 'leave', 'holiday']
@@ -385,6 +394,12 @@ const { data: summaryData } = useAttendanceSummary(
 )
 const summary = computed(() => summaryData.value?.data ?? [])
 
+// ---------- Recent Summary drill-down: full page (modal too small for 300 names) ----------
+type DrillStatus = 'present' | 'absent' | 'late' | 'leave'
+function openDrill(date: string, status: DrillStatus): void {
+  router.push({ path: `/admin/attendance/day/${date}`, query: { status } })
+}
+
 // ---------- report (every student, coaching pattern) ----------
 const monthAgo = (): string => {
   const d = new Date()
@@ -414,6 +429,16 @@ const reportParams = computed(() => ({
 }))
 const { data: reportData, isLoading: reportLoading } = useAttendanceReport(reportParams)
 const reportRows = computed(() => reportData.value?.data ?? [])
+const { data: settingsData } = useSettings()
+// Report table pagination (mark roster stays full-list by design — teacher marks all).
+const { page: repPage, perPage: repPerPage } = usePagedList(10)
+watch([repClassId, repSectionId, repDeptId, repFrom, repTo], () => {
+  repPage.value = 1
+})
+const pagedReportRows = computed(() => {
+  const start = (repPage.value - 1) * repPerPage.value
+  return reportRows.value.slice(start, start + repPerPage.value)
+})
 
 const percentClass = (percentage: number): string =>
   percentage >= 85 ? 'percent__fill--high' : percentage >= 60 ? 'percent__fill--mid' : 'percent__fill--low'
@@ -434,6 +459,24 @@ function exportReportCSV(): void {
   a.download = `attendance-report-${repFrom.value}-${repTo.value}.csv`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function exportReportPDF(): void {
+  const className = repClass.value?.label ?? 'All classes'
+  attendanceReportPdf({
+    schoolName: settingsData.value?.data.schoolName || 'School',
+    period: `${repFrom.value} to ${repTo.value}`,
+    classLabel: className,
+    rows: reportRows.value.map((r) => ({
+      name: r.studentName,
+      roll: String(r.roll ?? ''),
+      present: r.present,
+      late: r.late,
+      absent: r.absent,
+      total: r.total,
+      percentage: r.percentage,
+    })),
+  })
 }
 
 // ---------- card-reader taps (today only) ----------
@@ -657,6 +700,30 @@ async function closeDay(): Promise<void> {
   font-size: var(--font-size-sm);
   cursor: pointer;
   white-space: nowrap;
+}
+.count-btn {
+  background: none;
+  border: none;
+  padding: 2px 8px;
+  font: inherit;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+.count-btn:hover {
+  text-decoration: underline;
+}
+.count-btn--present {
+  color: var(--color-success, green);
+}
+.count-btn--absent {
+  color: var(--color-danger);
+}
+.count-btn--late {
+  color: var(--color-warning, #b45309);
+}
+.count-btn--leave {
+  color: var(--color-text-muted);
 }
 .percent {
   display: flex;

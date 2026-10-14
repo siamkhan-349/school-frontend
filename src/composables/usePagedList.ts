@@ -13,8 +13,11 @@ export function isPageSize(value: number): boolean {
  * strand the table on a page past the end of the list.
  */
 export function usePagedList(screenDefault = 10) {
+  // Default must be a valid dropdown option — otherwise the select shows
+  // blank and the range reads "1–15 of N" with no matching choice.
+  const safeDefault = isPageSize(screenDefault) ? screenDefault : 10
   const page = ref(1)
-  const local = ref(screenDefault)
+  const local = ref(safeDefault)
   const perPage = computed({
     get: () => local.value,
     set: (value: number) => {

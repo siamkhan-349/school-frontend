@@ -12,6 +12,10 @@
     </header>
 
     <p v-if="historyLoading && allRecords.length === 0" class="muted">Loading attendance…</p>
+    <p v-else-if="historyError && allRecords.length === 0" class="error">
+      Attendance load hoyni ({{ historyError }}). Internet/backend check kore
+      <button type="button" class="link-btn" @click="refetchHistory">abar try koro</button>.
+    </p>
 
     <template v-else>
       <div class="summary-cards">
@@ -122,7 +126,8 @@
 
       <AppCard title="Recorded days">
         <div v-if="filteredRecords.length === 0" class="att-detail__state">
-          No attendance records for this period.
+          <p v-if="allRecords.length === 0">{{ memberName }} er kono attendance record backend e nai — age <strong>/admin/attendance</strong> theke hazira mark koro, tarpor ekhane dekhte paba.</p>
+          <p v-else>No attendance records for this period.</p>
         </div>
         <div v-else class="att-detail__table-wrap">
           <table class="att-detail__table">
@@ -173,13 +178,20 @@ const studentId = computed(() => String(route.params.id || ''))
 const queryName = computed(() => String(route.query.name || ''))
 
 const { data: studentInfoData } = useStudent(studentId)
-const { data: historyData, isLoading: historyLoading } = useStudentAttendanceHistory(studentId)
+const { data: historyData, isLoading: historyLoading, isError: historyFailed, error: historyErr, refetch: refetchHistory } = useStudentAttendanceHistory(studentId)
+// NOTE: `student` must be declared BEFORE useSections/useDepartments —
+// their key resolvers read it eagerly, otherwise TDZ ReferenceError.
+const student = computed(() => studentInfoData.value?.data)
+const historyError = computed(() => {
+  if (!historyFailed.value) return ''
+  const msg = historyErr.value instanceof Error ? historyErr.value.message : 'Failed to load'
+  return msg
+})
 
 const { data: classData } = useClasses()
 const { data: sectionData } = useSections(() => student.value?.classId || undefined)
 const { data: deptData } = useDepartments(() => student.value?.classId || undefined)
 
-const student = computed(() => studentInfoData.value?.data)
 const memberName = computed(() => queryName.value || student.value?.name || studentId.value)
 const subtitle = computed(() => {
   const s = student.value

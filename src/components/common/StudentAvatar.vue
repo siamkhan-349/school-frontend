@@ -1,20 +1,22 @@
 <template>
-  <span class="avatar" :class="genderClass" :style="{ width: sizePx, height: sizePx }">
+  <span class="avatar" :class="genderClass" :style="{ width: sizePx, height: sizePx }" :title="name">
     <img v-if="photoUrl" :src="photoUrl" :alt="name" class="avatar__img" />
-    <Venus v-else-if="isFemale" class="avatar__icon" :style="{ width: iconPx, height: iconPx }" />
-    <Mars v-else-if="isMale" class="avatar__icon" :style="{ width: iconPx, height: iconPx }" />
-    <UserRound v-else class="avatar__icon" :style="{ width: iconPx, height: iconPx }" />
+    <Icon v-else-if="isFemale" :icon="faceWoman" class="avatar__icon" :style="{ width: iconPx, height: iconPx }" />
+    <Icon v-else-if="isMale" :icon="faceMan" class="avatar__icon" :style="{ width: iconPx, height: iconPx }" />
+    <span v-else class="avatar__initial" :style="{ fontSize: initialPx }">{{ initial }}</span>
   </span>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Mars, UserRound, Venus } from 'lucide-vue-next'
+import { Icon } from '@iconify/vue'
+import faceMan from '@iconify-icons/mdi/face-man'
+import faceWoman from '@iconify-icons/mdi/face-woman'
 
 /**
  * Student photo with gender fallback: the backend image when photoUrl
- * exists, otherwise a Mars (male) / Venus (female) icon badge —
- * neutral person icon while gender is unknown.
+ * exists, otherwise a standard MDI face icon — face-man (male) /
+ * face-woman (female) — initial while gender is unknown.
  */
 const props = withDefaults(
   defineProps<{
@@ -27,7 +29,12 @@ const props = withDefaults(
 )
 
 const sizePx = computed(() => `${props.size}px`)
-const iconPx = computed(() => `${Math.round(props.size * 0.55)}px`)
+const iconPx = computed(() => `${Math.round(props.size * 0.62)}px`)
+const initialPx = computed(() => `${Math.round(props.size * 0.42)}px`)
+const initial = computed(() => {
+  const ch = (props.name || '').trim().charAt(0)
+  return ch ? ch.toUpperCase() : '?'
+})
 const normalizedGender = computed(() => (props.gender || '').toLowerCase())
 const isFemale = computed(() => normalizedGender.value === 'female')
 const isMale = computed(() => normalizedGender.value === 'male')
@@ -67,5 +74,10 @@ const genderClass = computed(() => {
 }
 .avatar__icon {
   flex-shrink: 0;
+}
+.avatar__initial {
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
 }
 </style>

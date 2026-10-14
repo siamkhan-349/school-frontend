@@ -24,7 +24,7 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppCard from '@/components/common/AppCard.vue'
-import { useClasses, useExams, useResultEntries } from '@/composables/useQueries'
+import { useClasses, useExamResults, useExams } from '@/composables/useQueries'
 import { defineComponent, h } from 'vue'
 
 const { data, isLoading } = useExams({ perPage: 500 })
@@ -34,24 +34,18 @@ const { data: classData } = useClasses()
 const classMap = computed(() => Object.fromEntries((classData.value?.data ?? []).map((c) => [c.id, c.label])))
 
 const ResultRow = defineComponent({
-  props: { exam: { type: Object as () => { id: string; name: string; classId: string; passMarks: number }, required: true } },
+  props: { exam: { type: Object as () => { id: string; name: string; classId: string }, required: true } },
   setup(props) {
-    const { data: entriesData } = useResultEntries(props.exam.id)
-    const entered = computed(() => (entriesData.value?.data ?? []).filter((r) => r.entered))
-    const passed = computed(() => entered.value.filter((r) => r.marksObtained >= props.exam.passMarks).length)
-    const passPct = computed(() =>
-      entered.value.length > 0 ? Math.round((passed.value / entered.value.length) * 100) : 0,
-    )
-    const topper = computed(() =>
-      [...entered.value].sort((a, b) => b.marksObtained - a.marksObtained)[0]?.studentName ?? '—',
-    )
+    const { data: resultsData } = useExamResults(props.exam.id)
+    const summary = computed(() => resultsData.value?.data.summary ?? { students: 0, passed: 0, failed: 0, passRate: 0 })
+    const topper = computed(() => resultsData.value?.data.rows[0]?.studentName ?? '—')
     return () =>
       h('tr', [
         h('td', props.exam.name),
         h('td', classMap.value[props.exam.classId] ?? props.exam.classId),
-        h('td', String(entered.value.length)),
-        h('td', String(passed.value)),
-        h('td', `${passPct.value}%`),
+        h('td', String(summary.value.students)),
+        h('td', String(summary.value.passed)),
+        h('td', `${summary.value.passRate}%`),
         h('td', topper.value),
         h('td', { class: 'row-actions' }, [
           h(RouterLink, { to: `/admin/exams/${props.exam.id}`, class: 'link-btn' }, () => 'Open'),

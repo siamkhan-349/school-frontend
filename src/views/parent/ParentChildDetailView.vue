@@ -22,16 +22,17 @@
           <p v-if="resultsLoading" class="muted">Loading…</p>
           <table v-else class="table">
             <thead>
-              <tr><th>Exam</th><th>Marks</th><th>Grade</th></tr>
+              <tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Grade</th></tr>
             </thead>
             <tbody>
-              <tr v-for="r in results" :key="r.examId">
+              <tr v-for="r in results" :key="`${r.examId}-${r.subjectId}`">
                 <td>{{ r.examName }}</td>
+                <td>{{ r.subjectName }}</td>
                 <td>{{ r.marksObtained }}/{{ r.fullMarks }}</td>
                 <td><span class="chip">{{ r.grade }}</span></td>
               </tr>
               <tr v-if="results.length === 0">
-                <td colspan="3" class="muted">No published results yet.</td>
+                <td colspan="4" class="muted">No published results yet.</td>
               </tr>
             </tbody>
           </table>

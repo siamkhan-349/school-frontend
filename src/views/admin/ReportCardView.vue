@@ -1,12 +1,15 @@
 <template>
   <div class="report">
-    <div class="report__toolbar">
+    <div class="report__toolbar no-print">
       <RouterLink :to="`/admin/exams/${examId}`" class="back">‹ Back</RouterLink>
-      <AppButton @click="print">Print Report Card</AppButton>
+      <div class="report__actions">
+        <AppButton variant="ghost" @click="downloadPdf">PDF</AppButton>
+        <AppButton @click="print">Print Report Card</AppButton>
+      </div>
     </div>
 
     <p v-if="loading" class="muted">Loading…</p>
-    <p v-else-if="!exam || !student" class="error">Record not found.</p>
+    <p v-else-if="!exam || !student || !row" class="error">Record not found.</p>
     <div v-else class="sheet">
       <header class="sheet__head">
         <h2>{{ settings?.schoolName ?? 'School' }}</h2>
@@ -21,19 +24,26 @@
       </dl>
       <table class="table">
         <thead>
-          <tr><th>Exam</th><th>Full Marks</th><th>Obtained</th><th>Grade</th><th>Rank</th></tr>
+          <tr><th>Subject</th><th>CQ</th><th>MCQ</th><th>Total</th><th>Grade</th><th>Status</th></tr>
         </thead>
         <tbody>
-          <tr>
-            <td>{{ exam.name }}</td>
-            <td>{{ exam.fullMarks }}</td>
-            <td>{{ entry?.marksObtained ?? 0 }}</td>
-            <td>{{ grade }}</td>
-            <td>{{ rank }}</td>
+          <tr v-for="s in row.subjects" :key="s.subjectId">
+            <td>{{ s.name }}</td>
+            <td>{{ showCq(s) }}</td>
+            <td>{{ showMcq(s) }}</td>
+            <td>{{ s.total }}/{{ s.full }}</td>
+            <td>{{ s.grade }}</td>
+            <td>{{ s.absent ? 'Absent' : s.passed ? 'Pass' : 'Fail' }}</td>
           </tr>
         </tbody>
       </table>
-      <p class="muted">Status: {{ (entry?.marksObtained ?? 0) >= exam.passMarks ? 'Passed' : 'Failed' }}</p>
+      <dl class="kv">
+        <div><dt>Total</dt><dd>{{ row.total }}/{{ fullMarks }}</dd></div>
+        <div><dt>Percentage</dt><dd>{{ row.percentage }}%</dd></div>
+        <div><dt>Grade</dt><dd>{{ row.grade }}</dd></div>
+        <div><dt>Rank</dt><dd>{{ row.rank }}/{{ totalStudents }}</dd></div>
+      </dl>
+      <p class="muted">Status: {{ row.passed ? 'Passed' : 'Failed' }}</p>
     </div>
   </div>
 </template>
@@ -42,8 +52,10 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
-import { useClasses, useExam, useResultEntries, useSettings, useStudent } from '@/composables/useQueries'
-import { gradeFromMarks } from '@/utils/grading'
+import { useClasses, useExam, useExamResults, useSettings, useStudent } from '@/composables/useQueries'
+import { printWithTitle } from '@/utils/print'
+import { reportCardPdf } from '@/utils/pdf'
+import type { ExamResultSubjectRow } from '@/services'
 
 const route = useRoute()
 const examId = computed(() => String(route.params.id ?? ''))
@@ -53,31 +65,51 @@ const { data: examData, isLoading: examLoading } = useExam(examId)
 const exam = computed(() => examData.value?.data)
 const { data: studentData, isLoading: studentLoading } = useStudent(studentId)
 const student = computed(() => studentData.value?.data)
-const { data: entriesData, isLoading: entriesLoading } = useResultEntries(examId)
+const { data: resultsData, isLoading: resultsLoading } = useExamResults(examId)
 const { data: classData } = useClasses()
 const { data: settingsData } = useSettings()
 const settings = computed(() => settingsData.value?.data)
 
-const loading = computed(() => examLoading.value || studentLoading.value || entriesLoading.value)
+const loading = computed(() => examLoading.value || studentLoading.value || resultsLoading.value)
 const classLabel = computed(
   () => classData.value?.data.find((c) => c.id === student.value?.classId)?.label ?? '',
 )
-const ranked = computed(() =>
-  [...(entriesData.value?.data ?? [])]
-    .filter((r) => r.entered)
-    .sort((a, b) => b.marksObtained - a.marksObtained),
-)
-const entry = computed(() => ranked.value.find((r) => r.studentId === studentId.value))
-const grade = computed(() =>
-  gradeFromMarks(entry.value?.marksObtained ?? 0, exam.value?.fullMarks ?? 100),
-)
-const rank = computed(() => {
-  const i = ranked.value.findIndex((r) => r.studentId === studentId.value)
-  return i === -1 ? '—' : `${i + 1}/${ranked.value.length}`
-})
+const row = computed(() => resultsData.value?.data.rows.find((r) => r.studentId === studentId.value))
+const fullMarks = computed(() => resultsData.value?.data.fullMarks ?? 0)
+const totalStudents = computed(() => resultsData.value?.data.rows.length ?? 0)
+
+const showCq = (s: ExamResultSubjectRow): string => {
+  const sub = exam.value?.subjects.find((x) => x.id === s.subjectId)
+  return sub?.hasSplit ? String(s.cq) : '—'
+}
+const showMcq = (s: ExamResultSubjectRow): string => {
+  const sub = exam.value?.subjects.find((x) => x.id === s.subjectId)
+  return sub?.hasSplit ? String(s.mcq) : '—'
+}
 
 function print(): void {
-  window.print()
+  const who = student.value?.name ?? ''
+  const what = exam.value?.name ?? ''
+  printWithTitle([ 'Report Card', who, what ].filter(Boolean).join(' - ') || 'Report Card')
+}
+function downloadPdf(): void {
+  if (!exam.value || !student.value || !row.value) return
+  reportCardPdf({
+    schoolName: settings.value?.schoolName ?? 'School',
+    address: settings.value?.address ?? '',
+    phone: settings.value?.phone ?? '',
+    examName: exam.value.name,
+    studentName: student.value.name,
+    roll: String(student.value.roll ?? '—'),
+    classLabel: classLabel.value,
+    examDate: exam.value.examDate,
+    fullMarks: Number(fullMarks.value ?? 0),
+    obtained: row.value.total,
+    grade: row.value.grade,
+    rank: `${row.value.rank}/${totalStudents.value}`,
+    status: row.value.passed ? 'Passed' : 'Failed',
+    lines: row.value.subjects.map((s) => ({ name: s.name, total: s.total, full: s.full, grade: s.grade })),
+  })
 }
 </script>
 
@@ -92,6 +124,10 @@ function print(): void {
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
+}
+.report__actions {
+  display: flex;
+  gap: var(--spacing-sm);
 }
 .back {
   color: var(--color-primary);
@@ -145,6 +181,7 @@ function print(): void {
 }
 @media print {
   .report__toolbar,
+  .no-print,
   .app-shell__sidebar,
   .app-shell__topbar {
     display: none !important;

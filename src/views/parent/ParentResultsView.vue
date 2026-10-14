@@ -8,23 +8,25 @@
         </select>
       </FilterPanel>
       <p v-if="isLoading" class="muted">Loading…</p>
-      <table v-else class="table">
-        <thead>
-          <tr><th>Exam</th><th>Date</th><th>Marks</th><th>Grade</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in results" :key="r.examId">
-            <td>{{ r.examName }}</td>
-            <td>{{ r.examDate }}</td>
-            <td>{{ r.marksObtained }}/{{ r.fullMarks }}</td>
-            <td><span class="chip">{{ r.grade }}</span></td>
-            <td>{{ r.marksObtained >= r.passMarks ? 'Passed' : 'Failed' }}</td>
-          </tr>
-          <tr v-if="results.length === 0">
-            <td colspan="5" class="muted">No published results for this child yet.</td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-else>
+        <AppCard v-for="g in grouped" :key="g.examId" class="exam-card">
+          <h3 class="exam-card__title">{{ g.examName }} <span class="muted">· {{ g.examDate }}</span></h3>
+          <table class="table">
+            <thead>
+              <tr><th>Subject</th><th>Marks</th><th>Grade</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in g.rows" :key="r.subjectId">
+                <td>{{ r.subjectName }}</td>
+                <td>{{ r.marksObtained }}/{{ r.fullMarks }}</td>
+                <td><span class="chip">{{ r.grade }}</span></td>
+                <td>{{ r.absent ? 'Absent' : r.passed ? 'Passed' : 'Failed' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </AppCard>
+        <p v-if="grouped.length === 0" class="muted">No published results for this child yet.</p>
+      </div>
     </AppCard>
   </div>
 </template>
@@ -44,6 +46,18 @@ watch(children, (list) => {
 
 const { data, isLoading } = useParentResults(() => childId.value)
 const results = computed(() => data.value?.data ?? [])
+const grouped = computed(() => {
+  const map = new Map<string, { examId: string; examName: string; examDate: string; rows: typeof results.value }>()
+  for (const r of results.value) {
+    let g = map.get(r.examId)
+    if (!g) {
+      g = { examId: r.examId, examName: r.examName, examDate: r.examDate, rows: [] }
+      map.set(r.examId, g)
+    }
+    g.rows.push(r)
+  }
+  return [...map.values()]
+})
 </script>
 
 <style scoped>
@@ -55,6 +69,14 @@ const results = computed(() => data.value?.data ?? [])
 .muted {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+.exam-card {
+  margin-bottom: var(--spacing-md);
+}
+.exam-card__title {
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  margin: 0 0 var(--spacing-sm);
 }
 .table {
   width: 100%;

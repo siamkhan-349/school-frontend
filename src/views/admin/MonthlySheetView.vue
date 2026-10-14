@@ -27,6 +27,14 @@
           v-if="savedRows.length > 0"
           variant="ghost"
           type="button"
+          @click="downloadPdf"
+        >
+          PDF
+        </AppButton>
+        <AppButton
+          v-if="savedRows.length > 0"
+          variant="ghost"
+          type="button"
           @click="printSheet"
         >
           Print
@@ -182,6 +190,8 @@ import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import { useGenerateMonth, usePaySalary, useSalaries } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { printWithTitle } from '@/utils/print'
+import { salarySheetPdf } from '@/utils/pdf'
 import { payrollService } from '@/services'
 import type { SalaryRecord, SheetDraftRow } from '@/types/models'
 
@@ -412,7 +422,32 @@ function downloadCsv(): void {
 }
 
 function printSheet(): void {
-  window.print()
+  printWithTitle(`Salary Sheet - ${periodLabel(month.value, year.value)}`)
+}
+function downloadPdf(): void {
+  salarySheetPdf({
+    schoolName: 'School',
+    periodLabel: periodLabel(month.value, year.value),
+    rows: savedRows.value.map((s) => ({
+      teacherName: s.teacherName,
+      basic: num(s.basic),
+      allowance: num(s.allowance),
+      bonus: num(s.bonus),
+      deduction: num(s.deduction),
+      gross: grossOf(s),
+      net: num(s.net),
+      status: s.status,
+      paymentDate: s.paymentDate || '',
+    })),
+    totals: {
+      basic: num(totals.value.basic),
+      allowance: num(totals.value.allowance),
+      bonus: num(totals.value.bonus),
+      deduction: num(totals.value.deduction),
+      gross: num(totals.value.gross),
+      net: num(totals.value.net),
+    },
+  })
 }
 </script>
 

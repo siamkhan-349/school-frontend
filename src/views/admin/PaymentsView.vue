@@ -3,6 +3,8 @@
     <div class="page__head">
       <h1 class="page__title">Payment History</h1>
       <div class="page__actions">
+        <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportCsv">{{ exporting ? 'Loading…' : 'CSV' }}</AppButton>
+        <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportPdf">{{ exporting ? 'Loading…' : 'PDF' }}</AppButton>
         <RouterLink to="/admin/fees/collect" class="link-btn">+ Collect</RouterLink>
         <RouterLink to="/admin/payments/bulk" class="link-btn">Bulk import</RouterLink>
       </div>
@@ -67,14 +69,16 @@ import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
-import { useDeletePayment, usePayments } from '@/composables/useQueries'
+import { useDeletePayment, usePayments, useSettings } from '@/composables/useQueries'
 import { usePagedList } from '@/composables/usePagedList'
 import { useToast } from '@/composables/useToast'
 import { receiptTypeLabel, receiptTypeTitle } from '@/utils/paymentLabels'
+import { downloadCsv, paymentsPdf } from '@/utils/pdf'
+import { paymentService } from '@/services'
 import type { Payment } from '@/types/models'
 
 const toast = useToast()
-const { page, perPage } = usePagedList(15)
+const { page, perPage } = usePagedList(10)
 const search = ref('')
 const feeType = ref('')
 const status = ref('')
@@ -131,6 +135,68 @@ const total = computed(() => data.value?.data.pagination.total ?? 0)
 const confirm = ref({ open: false, id: '', message: '' })
 const deleting = ref(false)
 const { mutateAsync: deletePayment } = useDeletePayment()
+
+const { data: settingsData } = useSettings()
+const schoolName = computed(() => settingsData.value?.data.schoolName || 'School')
+const exporting = ref(false)
+
+// Export covers ALL filtered receipts (backend caps at 500 per call).
+async function fetchAllFiltered(): Promise<Payment[]> {
+  const res = await paymentService.list({
+    search: search.value || undefined,
+    feeType: feeType.value || undefined,
+    status: status.value || undefined,
+    from: from.value || undefined,
+    to: to.value || undefined,
+    ordering: ordering.value || undefined,
+    page: 1,
+    perPage: 500,
+  })
+  return res.data.items ?? []
+}
+function periodLabel(): string {
+  if (!from.value && !to.value) return 'Full history'
+  return `${from.value || '…'} to ${to.value || '…'}`;
+}
+async function exportCsv(): Promise<void> {
+  exporting.value = true
+  try {
+    const all = await fetchAllFiltered()
+    downloadCsv(
+      `payments-${from.value || 'full'}-${to.value || 'today'}.csv`,
+      ['SL', 'Receipt', 'Student', 'Fee', 'Amount (Tk)', 'Paid (Tk)', 'Method', 'Date'],
+      all.map((p, i) => [i + 1, p.receiptNumber, p.studentName, receiptTypeLabel(p, headLabel), Number(p.amount) || 0, Number(p.paid) || 0, p.paymentMethod || '', p.paymentDate]),
+    )
+    toast.success(`${all.length} receipts exported`)
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Export failed')
+  } finally {
+    exporting.value = false
+  }
+}
+async function exportPdf(): Promise<void> {
+  exporting.value = true
+  try {
+    const all = await fetchAllFiltered()
+    paymentsPdf({
+      schoolName: schoolName.value,
+      period: periodLabel(),
+      rows: all.map((p) => ({
+        receipt: p.receiptNumber,
+        student: p.studentName,
+        fee: receiptTypeLabel(p, headLabel),
+        amount: Number(p.amount) || 0,
+        paid: Number(p.paid) || 0,
+        method: p.paymentMethod || '—',
+        date: p.paymentDate,
+      })),
+    })
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Export failed')
+  } finally {
+    exporting.value = false
+  }
+}
 
 function askDelete(id: string, receipt: string): void {
   confirm.value = { open: true, id, message: `Delete payment "${receipt}"? Student due will recalculate.` }

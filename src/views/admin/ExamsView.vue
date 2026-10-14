@@ -2,7 +2,7 @@
   <div class="page">
     <div class="page__head">
       <h1 class="page__title">Exams</h1>
-      <AppButton @click="form.open = true">+ New Exam</AppButton>
+      <AppButton @click="goNew">+ New Exam</AppButton>
     </div>
 
     <AppCard>
@@ -48,36 +48,6 @@
       <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" />
     </AppCard>
 
-    <Teleport to="body">
-      <div v-if="form.open" class="modal-backdrop" @click.self="form.open = false">
-        <div class="modal">
-          <h3 class="modal__title">New Exam</h3>
-          <form class="form-grid" @submit.prevent="save">
-            <label class="span">Name<input v-model="form.name" class="app-input__control" required /></label>
-            <label>Date<input v-model="form.examDate" type="date" class="app-input__control" required /></label>
-            <label>Class
-              <select v-model="form.classId" class="app-input__control">
-                <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.label }}</option>
-              </select>
-            </label>
-            <label>Section
-              <select v-model="form.sectionId" class="app-input__control">
-                <option :value="null">All</option>
-                <option v-for="s in formSections" :key="s.id" :value="s.id">{{ s.label }}</option>
-              </select>
-            </label>
-            <label>Full marks<input v-model.number="form.fullMarks" type="number" min="1" class="app-input__control" /></label>
-            <label>Pass marks<input v-model.number="form.passMarks" type="number" min="0" class="app-input__control" /></label>
-            <p v-if="formError" class="error span">{{ formError }}</p>
-            <div class="form-actions">
-              <AppButton variant="ghost" type="button" @click="form.open = false">Cancel</AppButton>
-              <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Create' }}</AppButton>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
-
     <AppConfirmDialog
       :open="confirm.open"
       :message="confirm.message"
@@ -89,7 +59,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
@@ -97,16 +68,18 @@ import AppPagination from '@/components/common/AppPagination.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import {
   useClasses,
-  useCreateExam,
   useDeleteExam,
   useExams,
   useExamStatus,
-  useSections,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import type { ExamStatus } from '@/types/models'
 
 const toast = useToast()
+const router = useRouter()
+function goNew(): void {
+  router.push('/admin/exams/new')
+}
 const classId = ref('')
 const page = ref(1)
 const perPage = ref(10)
@@ -130,49 +103,8 @@ const { data: classData } = useClasses()
 const classes = computed(() => classData.value?.data ?? [])
 const classLabel = (id: string): string => classes.value.find((c) => c.id === id)?.label ?? id
 
-const today = (): string => new Date().toISOString().slice(0, 10)
-const form = reactive({
-  open: false,
-  name: '',
-  examDate: today(),
-  classId: '',
-  sectionId: null as string | null,
-  fullMarks: 100,
-  passMarks: 33,
-})
-watch(classes, (list) => {
-  if (!form.classId && list.length > 0) form.classId = list[0]?.id ?? ''
-}, { immediate: true })
-const { data: formSectionData } = useSections(() => form.classId || undefined)
-const formSections = computed(() => formSectionData.value?.data ?? [])
-
-const formError = ref('')
-const saving = ref(false)
-const { mutateAsync: createExam } = useCreateExam()
 const { mutateAsync: changeStatus } = useExamStatus()
 const { mutateAsync: deleteExam } = useDeleteExam()
-
-async function save(): Promise<void> {
-  formError.value = ''
-  saving.value = true
-  try {
-    await createExam({
-      name: form.name.trim(),
-      examDate: form.examDate,
-      classId: form.classId,
-      sectionId: form.sectionId,
-      fullMarks: form.fullMarks,
-      passMarks: form.passMarks,
-    })
-    toast.success('Exam created')
-    form.open = false
-    form.name = ''
-  } catch (e) {
-    formError.value = e instanceof Error ? e.message : 'Save failed'
-  } finally {
-    saving.value = false
-  }
-}
 
 async function setStatus(id: string, status: ExamStatus): Promise<void> {
   try {
@@ -217,10 +149,6 @@ async function doDelete(): Promise<void> {
 }
 .muted {
   color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-.error {
-  color: var(--color-danger);
   font-size: var(--font-size-sm);
 }
 .table {
@@ -275,47 +203,5 @@ async function doDelete(): Promise<void> {
 }
 .link-btn--danger {
   color: var(--color-danger);
-}
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(16, 24, 40, 0.45);
-  display: grid;
-  place-items: center;
-  z-index: 60;
-  padding: var(--spacing-lg);
-}
-.modal {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: var(--spacing-lg);
-  width: min(560px, 100%);
-}
-.modal__title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  margin-bottom: var(--spacing-md);
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-sm);
-}
-.form-grid label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  font-size: var(--font-size-sm);
-}
-.span {
-  grid-column: 1 / -1;
-}
-.form-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-sm);
 }
 </style>
