@@ -37,17 +37,17 @@
           </select>
         </label>
         <div v-if="form.departmentId" class="switch-row">
-          <button class="switch" :class="{ 'switch--on': form.includeCommon }" type="button" role="switch" :aria-checked="form.includeCommon" aria-label="Common subjects soho" @click="form.includeCommon = !form.includeCommon">
+          <button class="switch" :class="{ 'switch--on': form.includeCommon }" type="button" role="switch" :aria-checked="form.includeCommon" aria-label="Include common subjects" @click="form.includeCommon = !form.includeCommon">
             <span class="switch__knob" />
           </button>
-          <span>Common subjects soho</span>
+          <span>Include common subjects</span>
         </div>
         <div v-if="form.classId" class="span subj-head">
           <strong>Subjects</strong>
           <button class="link-btn" type="button" @click="addSubjectRow">+ Add subject</button>
         </div>
-        <p v-if="!form.classId" class="muted span">Subject dekhte age class select koro.</p>
-        <p v-if="form.classId && classSubjects.length === 0" class="muted span">Ei class e kono subject set kora nai — Academics theke add koro, ba + Add subject diye hate likho.</p>
+        <p v-if="!form.classId" class="muted span">Select a class first to see subjects.</p>
+        <p v-if="form.classId && classSubjects.length === 0" class="muted span">No subjects set for this class — add them from Academics, or write your own with + Add subject.</p>
         <template v-if="form.classId" v-for="[group, rows] in groupedSubjects" :key="group">
           <p v-if="groupedSubjects.length > 1" class="span group-head">{{ group }} ({{ rows.length }})</p>
           <div v-for="s in rows" :key="s.name" class="span subj-row">
@@ -69,8 +69,8 @@
             <label v-if="s.passRule !== 'separate'">Total pass<input v-model.number="s.passMarks" type="number" min="0" class="app-input__control" /></label>
             <label>Pass rule
               <select v-model="s.passRule" class="app-input__control">
-                <option value="separate">Separate (CQ+MCQ alada pass)</option>
-                <option value="combine">Combine (mot ei pass)</option>
+                <option value="separate">Separate (CQ + MCQ pass separately)</option>
+                <option value="combine">Combine (total decides pass)</option>
               </select>
             </label>
           </div>
@@ -129,9 +129,9 @@ const form = reactive({
 function addSubjectRow(): void {
   form.subjects.push(blankSubject())
 }
-// Row Full sob somoy split input er jogfol — hate likha Full ar CQ+MCQ er
-// jog mil na hole backend reject kore, tai split bodlalei Full sync hoy.
-// Ete nicher Total line o input onujayi dynamic dekhay.
+// Row Full is always the sum of the split inputs — the backend rejects a
+// hand-typed Full that disagrees with CQ+MCQ, so Full syncs whenever a split changes.
+// This also keeps the Total line below dynamic with the inputs.
 watch(
   () => form.subjects.map((s) => [s.cqFull, s.mcqFull]),
   () => {
@@ -167,7 +167,7 @@ watch(() => form.classId, () => {
 })
 const { data: formSectionData } = useSections(() => form.classId || undefined)
 const formSections = computed(() => formSectionData.value?.data ?? [])
-// Class select korlei Section e by default A bosbe (A na thakle prothomta).
+// Selecting a class defaults Section to A (first one if there is no A).
 watch(formSections, (list) => {
   if (!form.classId || form.sectionId || list.length === 0) return
   form.sectionId = list.find((s) => s.label.trim().toLowerCase() === 'a')?.id ?? list[0]?.id ?? null
@@ -205,9 +205,8 @@ function rowFromLabel(label: string, group: string): SubjectRow {
   }
   return row
 }
-// Class bodlale oi class er subject gula auto row hoye asbe — exam
-// category onujayi default vag niye. Hate lekhar dorkar nai, chaile
-// + Add subject diye extra add ba × diye sorano jabe.
+// Changing class auto-fills that class's subjects as rows, pre-split per the
+// exam category. No typing needed — add extras with + Add subject or drop with ×.
 watch(classSubjects, (list) => {
   if (!form.classId) {
     form.subjects = []
@@ -219,7 +218,7 @@ function removeRow(row: SubjectRow): void {
   const i = form.subjects.indexOf(row)
   if (i >= 0) form.subjects.splice(i, 1)
 }
-// Heading soho group: Common age, tarpor department order e, Additional sese.
+// Grouped with headings: Common first, then departments in order, Additional last.
 const groupedSubjects = computed(() => {
   const order = new Map<string, number>()
   order.set('Common', 0)
@@ -246,7 +245,7 @@ function goBack(): void {
 async function save(): Promise<void> {
   formError.value = ''
   if (!form.classId) {
-    formError.value = 'Age class select koro.'
+    formError.value = 'Select a class first.'
     return
   }
   const subjects: ExamSubjectInput[] = []

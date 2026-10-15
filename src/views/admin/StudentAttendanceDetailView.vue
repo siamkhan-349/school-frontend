@@ -14,7 +14,7 @@
     <p v-if="historyLoading && allRecords.length === 0" class="muted">Loading attendance…</p>
     <p v-else-if="historyError && allRecords.length === 0" class="error">
       Attendance load hoyni ({{ historyError }}). Internet/backend check kore
-      <button type="button" class="link-btn" @click="refetchHistory">abar try koro</button>.
+      <button type="button" class="link-btn" @click="refetchHistory">try again</button>.
     </p>
 
     <template v-else>
@@ -126,7 +126,7 @@
 
       <AppCard title="Recorded days">
         <div v-if="filteredRecords.length === 0" class="att-detail__state">
-          <p v-if="allRecords.length === 0">{{ memberName }} er kono attendance record backend e nai — age <strong>/admin/attendance</strong> theke hazira mark koro, tarpor ekhane dekhte paba.</p>
+          <p v-if="allRecords.length === 0">{{ memberName }} has no attendance records in the backend yet — mark attendance from <strong>/admin/attendance</strong> first, then check back here.</p>
           <p v-else>No attendance records for this period.</p>
         </div>
         <div v-else class="att-detail__table-wrap">

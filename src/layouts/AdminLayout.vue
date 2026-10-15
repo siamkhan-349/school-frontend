@@ -54,7 +54,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Menu } from 'lucide-vue-next'
-import { ADMIN_NAV_ITEMS, ADMIN_SECTION_ORDER, MONITOR_NAV_ITEMS } from '@/constants/navigation'
+import { ADMIN_NAV_ITEMS, ADMIN_SECTION_ORDER, ACCOUNTANT_NAV_ITEMS, MONITOR_NAV_ITEMS } from '@/constants/navigation'
 import { satisfiesModuleGate } from '@/constants/modules'
 import { useAuthStore } from '@/stores/auth'
 import { useSchoolStore } from '@/stores/school'
@@ -71,7 +71,12 @@ const { toasts } = useToast()
 useCardScanner()
 
 const visibleNav = computed(() => {
-  const items = auth.user?.role === 'monitor' ? MONITOR_NAV_ITEMS : ADMIN_NAV_ITEMS
+  const items =
+    auth.user?.role === 'monitor'
+      ? MONITOR_NAV_ITEMS
+      : auth.user?.role === 'accountant'
+        ? ACCOUNTANT_NAV_ITEMS
+        : ADMIN_NAV_ITEMS
   return items.filter(
     (item) => auth.can(item.permission) && satisfiesModuleGate(item.module, (k) => school.hasModule(k)),
   )

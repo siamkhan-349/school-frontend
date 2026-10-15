@@ -19,6 +19,8 @@ import {
   studentService,
   teacherService,
   teacherSubjectService,
+  userService,
+  type AppUserInput,
 } from '@/services'
 import type { StudentInput, TeacherInput } from '@/types/models'
 import type { ListParams } from '@/types/api'
@@ -104,6 +106,15 @@ export function useTeachers(source: ParamSource = {}) {
     queryKey: keyOf('teachers', source),
     queryFn: () => teacherService.list(resolveParams(source)),
     placeholderData: (prev) => prev,
+  })
+}
+
+/** Signed-in teacher/staff member's own linked profile (for the teacher panel). */
+export function useMyTeacher() {
+  return useQuery({
+    queryKey: ['teachers', 'me'],
+    queryFn: () => teacherService.me(),
+    retry: false,
   })
 }
 
@@ -1030,17 +1041,53 @@ export function useDeleteSmsTemplate() {
   })
 }
 
+export function useUpdateSmsTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: { name?: string; type?: string; body?: string } }) =>
+      smsService.updateTemplate(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sms-templates'] }),
+  })
+}
+
+export function useSendBulkSms() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      body?: string
+      templateId?: string
+      recipients: { recipientId: string; recipientType?: string; phone?: string; variables?: Record<string, string | number> }[]
+      variables?: Record<string, string | number>
+      examId?: string
+    }) => smsService.sendBulk(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sms-logs'] })
+      qc.invalidateQueries({ queryKey: ['sms-balance'] })
+    },
+  })
+}
+
 export function useSendSms() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ templateId, audience, classId }: { templateId: string | null; audience: string; classId?: string }) =>
       smsService.send(templateId, audience, classId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['sms-logs'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sms-logs'] })
+      qc.invalidateQueries({ queryKey: ['sms-balance'] })
+    },
   })
 }
 
-export function useSmsLogs() {
-  return useQuery({ queryKey: ['sms-logs'], queryFn: () => smsService.logs() })
+export function useSmsBalance() {
+  return useQuery({ queryKey: ['sms-balance'], queryFn: () => smsService.balance() })
+}
+
+export function useSmsLogs(source: ParamSource = {}) {
+  return useQuery({
+    queryKey: keyOf('sms-logs', source),
+    queryFn: () => smsService.logs(resolveParams(source)),
+  })
 }
 
 export function useEvents() {
@@ -1052,7 +1099,7 @@ export function useCreateEvent() {
   return useMutation({
     mutationFn: (input: {
       title: string; description: string; eventDate: string;
-      type: SchoolEvent['type']; audience: SchoolEvent['audience']
+      type: SchoolEvent['type']; audience: SchoolEvent['audience']; location?: string
     }) => eventService.create(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['events'] }),
   })
@@ -1067,11 +1114,61 @@ export function useEventStatus() {
   })
 }
 
+export function useUpdateEvent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: {
+      id: string
+      input: Partial<{
+        title: string; description: string; eventDate: string;
+        type: SchoolEvent['type']; audience: SchoolEvent['audience']; location: string
+      }>
+    }) => eventService.update(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['events'] }),
+  })
+}
+
 export function useDeleteEvent() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => eventService.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['events'] }),
+  })
+}
+
+// ---------- user logins (admin-managed: teacher / accountant / parent) ----------
+export function useAppUsers(source: MaybeReactive<{ role?: string; status?: string; search?: string }> = {}) {
+  return useQuery({
+    queryKey: computed(() => {
+      const p = resolveReactive(source)
+      return ['app-users', p.role ?? '', p.status ?? '', p.search ?? '']
+    }),
+    queryFn: () => userService.list(resolveReactive(source)),
+  })
+}
+
+export function useCreateAppUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: AppUserInput) => userService.create(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['app-users'] }),
+  })
+}
+
+export function useUpdateAppUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<AppUserInput> }) =>
+      userService.update(id, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['app-users'] }),
+  })
+}
+
+export function useDeleteAppUser() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => userService.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['app-users'] }),
   })
 }
 

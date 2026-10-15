@@ -3,6 +3,7 @@ export const PERMISSIONS = {
     VIEW_DASHBOARD: 'admin.dashboard.view',
     VIEW_STUDENTS: 'admin.students.view',
     MANAGE_STUDENTS: 'admin.students.manage',
+    DELETE_STUDENTS: 'admin.students.delete',
     VIEW_TEACHERS: 'admin.teachers.view',
     MANAGE_TEACHERS: 'admin.teachers.manage',
     VIEW_ATTENDANCE: 'admin.attendance.view',

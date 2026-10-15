@@ -54,6 +54,8 @@ interface QuickAccount {
 const QUICK_ACCOUNTS: QuickAccount[] = [
   { label: 'Super Admin', username: 'superadmin', password: 'super123' },
   { label: 'Admin', username: 'admin', password: 'admin123' },
+  { label: 'Accountant', username: 'accountant', password: 'account123' },
+  { label: 'Teacher / Staff', username: 'teacher', password: 'teacher123' },
   { label: 'Parent', username: 'parent', password: 'parent123' },
   { label: 'Live Display', username: 'live', password: 'live123' },
 ]
@@ -90,9 +92,11 @@ async function onSubmit(): Promise<void> {
         ? '/super-admin/dashboard'
         : role === 'parent'
           ? '/parent/dashboard'
-          : role === 'monitor'
-            ? '/live'
-            : '/admin/dashboard',
+          : role === 'teacher'
+            ? '/teacher/dashboard'
+            : role === 'monitor'
+              ? '/live'
+              : '/admin/dashboard',
     )
   } catch (e) {
     error.value = apiErrorMessage(e, 'Login failed')

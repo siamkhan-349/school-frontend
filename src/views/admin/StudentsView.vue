@@ -59,7 +59,7 @@
               <span class="row-actions">
                 <button class="link-btn" type="button" @click="goDetails(s.id)">Details</button>
                 <button class="link-btn" type="button" @click="goEdit(s.id)">Edit</button>
-                <button class="link-btn link-btn--danger" type="button" @click="askDelete(s.id, s.name)">Delete</button>
+                <button v-if="canDelete" class="link-btn link-btn--danger" type="button" @click="askDelete(s.id, s.name)">Delete</button>
               </span>
             </td>
           </tr>
@@ -100,11 +100,14 @@ import {
   useStudents,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import { downloadCsv, studentsPdf } from '@/utils/pdf'
 import { studentService } from '@/services'
 import type { Student } from '@/types/models'
 
 const toast = useToast()
+const auth = useAuthStore()
+const canDelete = computed(() => auth.can('admin.students.delete'))
 const filters = reactive({ search: '', gender: '', classId: '', sectionId: '', departmentId: '' })
 const page = ref(1)
 const perPage = ref(10)

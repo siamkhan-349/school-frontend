@@ -1,6 +1,8 @@
 import type { ApiResponse, ListParams, PaginatedData } from '@/types/api'
 import type {
   AcademicSession,
+  AppUser,
+  AppUserRole,
   AttendanceMark,
   AttendanceStatus,
   DashboardStats,
@@ -85,6 +87,10 @@ export const teacherService = {
   },
   get(id: string): Promise<ApiResponse<Teacher>> {
     return apiClient.get<Teacher>(`/teachers/${id}`)
+  },
+  /** Signed-in teacher/staff member's own linked profile (404 when unlinked). */
+  me(): Promise<ApiResponse<Teacher>> {
+    return apiClient.get<Teacher>('/teachers/me')
   },
   create(input: TeacherInput): Promise<ApiResponse<Teacher>> {
     return apiClient.post<Teacher>('/teachers', input)
@@ -281,6 +287,7 @@ export interface ExamResultSubjectRow {
 export interface ExamResultRow {
   studentId: string
   studentName: string
+  roll?: number | null
   subjects: ExamResultSubjectRow[]
   total: number
   percentage: number
@@ -595,6 +602,9 @@ export const smsService = {
   createTemplate(name: string, type: string, body: string): Promise<ApiResponse<SmsTemplate>> {
     return apiClient.post<SmsTemplate>('/sms/templates', { name, type, body })
   },
+  updateTemplate(id: string, input: { name?: string; type?: string; body?: string }): Promise<ApiResponse<SmsTemplate>> {
+    return apiClient.put<SmsTemplate>(`/sms/templates/${id}`, input)
+  },
   deleteTemplate(id: string): Promise<ApiResponse<null>> {
     return apiClient.delete<null>(`/sms/templates/${id}`)
   },
@@ -602,23 +612,66 @@ export const smsService = {
     templateId: string | null,
     audience: string,
     classId?: string,
-  ): Promise<ApiResponse<{ sent: number }>> {
+  ): Promise<ApiResponse<{ sent: number; failed: { recipientId: string; message: string }[] }>> {
     return apiClient.post('/sms/send', { templateId, audience, classId })
   },
-  logs(): Promise<ApiResponse<SmsLog[]>> {
-    return apiClient.get<SmsLog[]>('/sms/messages')
+  sendBulk(input: {
+    body?: string
+    templateId?: string
+    recipients: { recipientId: string; recipientType?: string; phone?: string; variables?: Record<string, string | number> }[]
+    variables?: Record<string, string | number>
+    examId?: string
+  }): Promise<ApiResponse<{ sent: number; failed: { recipientId: string; message: string }[] }>> {
+    return apiClient.post('/sms/bulk', input)
+  },
+  balance(): Promise<ApiResponse<SmsBalance>> {
+    return apiClient.get<SmsBalance>('/sms/balance')
+  },
+  logs(params?: { status?: string; search?: string }): Promise<ApiResponse<SmsLog[]>> {
+    return apiClient.get<SmsLog[]>('/sms/messages', params)
   },
 }
 
-export const eventService = {
-  list(): Promise<ApiResponse<SchoolEvent[]>> {
+export interface AppUserInput {
+  name: string
+  username: string
+  password?: string
+  role: AppUserRole
+  phone?: string
+  status?: 'active' | 'inactive'
+  children?: { id: string }[]
+  teacherId?: string
+}
+
+export const userService = {
+  list(params?: { role?: string; status?: string; search?: string }): Promise<ApiResponse<AppUser[]>> {
+    return apiClient.get<AppUser[]>('/coaching/users', { params })
+  },
+  create(input: AppUserInput): Promise<ApiResponse<AppUser>> {
+    return apiClient.post<AppUser>('/coaching/users', input)
+  },
+  update(id: string, input: Partial<AppUserInput>): Promise<ApiResponse<AppUser>> {
+    return apiClient.put<AppUser>(`/coaching/users/${id}`, input)
+  },
+  remove(id: string): Promise<ApiResponse<null>> {
+    return apiClient.delete<null>(`/coaching/users/${id}`)
+  },
+}
+
+export const eventService = {  list(): Promise<ApiResponse<SchoolEvent[]>> {
     return apiClient.get<SchoolEvent[]>('/events')
   },
   create(input: {
     title: string; description: string; eventDate: string;
-    type: SchoolEvent['type']; audience: SchoolEvent['audience']
+    type: SchoolEvent['type']; audience: SchoolEvent['audience']; location?: string
   }): Promise<ApiResponse<SchoolEvent>> {
     return apiClient.post<SchoolEvent>('/events', input)
+  },
+  update(id: string, input: Partial<{
+    title: string; description: string; eventDate: string;
+    type: SchoolEvent['type']; audience: SchoolEvent['audience']; location: string
+  }>): Promise<ApiResponse<SchoolEvent>> {
+    return apiClient.patch<SchoolEvent>(`/events/${id}`, input)
   },
   setStatus(id: string, status: SchoolEvent['status']) {
     return apiClient.patch(`/events/${id}`, { status })

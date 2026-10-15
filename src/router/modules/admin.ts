@@ -9,6 +9,8 @@ import StudentAttendanceDetailView from '@/views/admin/StudentAttendanceDetailVi
 import DashboardView from '@/views/admin/DashboardView.vue'
 import EventsView from '@/views/admin/EventsView.vue'
 import ExamDetailView from '@/views/admin/ExamDetailView.vue'
+import ExamResultCardView from '@/views/admin/ExamResultCardView.vue'
+import MeritListView from '@/views/admin/MeritListView.vue'
 import ExamCreateView from '@/views/admin/ExamCreateView.vue'
 import ExamsView from '@/views/admin/ExamsView.vue'
 import FeeCollectView from '@/views/admin/FeeCollectView.vue'
@@ -37,6 +39,7 @@ import StudentsView from '@/views/admin/StudentsView.vue'
 import TeachersView from '@/views/admin/TeachersView.vue'
 import TeacherCreateView from '@/views/admin/TeacherCreateView.vue'
 import TeacherSubjectsView from '@/views/admin/TeacherSubjectsView.vue'
+import UsersView from '@/views/admin/UsersView.vue'
 import PlaceholderView from '@/views/admin/PlaceholderView.vue'
 
 export const adminRoutes: RouteRecordRaw[] = [
@@ -55,8 +58,9 @@ export const adminRoutes: RouteRecordRaw[] = [
       { path: 'students/:id/edit', component: StudentEditView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'students' } },
       { path: 'students/:id', component: StudentDetailView, meta: { requiresAuth: true, permission: 'admin.students.view', module: 'students' } },
       { path: 'teachers', component: TeachersView, meta: { requiresAuth: true, permission: 'admin.teachers.view' } },
-      { path: 'teachers/new', component: TeacherCreateView, meta: { requiresAuth: true, permission: 'admin.teachers.view' } },
-      { path: 'teachers/:id/subjects', component: TeacherSubjectsView, meta: { requiresAuth: true, permission: 'admin.teachers.view' } },
+      { path: 'teachers/new', component: TeacherCreateView, meta: { requiresAuth: true, permission: 'admin.teachers.manage' } },
+      { path: 'teachers/:id/subjects', component: TeacherSubjectsView, meta: { requiresAuth: true, permission: 'admin.teachers.manage' } },
+      { path: 'users', component: UsersView, meta: { requiresAuth: true, permission: 'admin.users.view' } },
       { path: 'routine', component: RoutineView, meta: { requiresAuth: true, permission: 'admin.routine.view', module: 'routine' } },
       { path: 'routine/new', component: RoutineFormView, meta: { requiresAuth: true, permission: 'admin.routine.view', module: 'routine' } },
       { path: 'routine/:id/edit', component: RoutineFormView, meta: { requiresAuth: true, permission: 'admin.routine.view', module: 'routine' } },
@@ -67,6 +71,8 @@ export const adminRoutes: RouteRecordRaw[] = [
       { path: 'exams', component: ExamsView, meta: { requiresAuth: true, permission: 'admin.results.view', module: 'exam_result' } },
       { path: 'exams/new', component: ExamCreateView, meta: { requiresAuth: true, permission: 'admin.results.manage', module: 'exam_result' } },
       { path: 'exams/:id', component: ExamDetailView, meta: { requiresAuth: true, permission: 'admin.results.view', module: 'exam_result' } },
+      { path: 'exams/:id/merit', component: MeritListView, meta: { requiresAuth: true, permission: 'admin.results.view', module: 'exam_result' } },
+      { path: 'exams/:id/card', component: ExamResultCardView, meta: { requiresAuth: true, permission: 'admin.results.view', module: 'exam_result' } },
       { path: 'exams/:id/report/:studentId', component: ReportCardView, meta: { requiresAuth: true, permission: 'admin.results.view', module: 'exam_result' } },
       { path: 'results', component: ResultsView, meta: { requiresAuth: true, permission: 'admin.results.view', module: 'exam_result' } },
       { path: 'fees', component: FeeStructureView, meta: { requiresAuth: true, permission: 'admin.payments.view', module: 'payment' } },

@@ -22,6 +22,14 @@
         <label>Card cooldown (minutes after issue before taps work, 0 = off)
           <input v-model.number="profile.cardCooldownMinutes" type="number" min="0" class="app-input__control" />
         </label>
+        <label class="check">
+          <input v-model="profile.entrySmsEnabled" type="checkbox" />
+          Entry SMS — guardian gets present + entry time on card punch
+        </label>
+        <label class="check">
+          <input v-model="profile.exitSmsEnabled" type="checkbox" />
+          Exit SMS — guardian gets exit time on exit punch
+        </label>
         <AppButton type="submit" :disabled="saving">
           {{ saving ? 'Saving…' : 'Save Configuration' }}
         </AppButton>
@@ -55,6 +63,8 @@ const profile = reactive({
   schoolEndTime: '',
   resultSmsMode: 'after_publish' as 'after_publish' | 'per_student',
   cardCooldownMinutes: 1,
+  entrySmsEnabled: false,
+  exitSmsEnabled: false,
 })
 
 watch(
@@ -69,6 +79,8 @@ watch(
     profile.schoolEndTime = s.schoolEndTime
     profile.resultSmsMode = s.resultSmsMode
     profile.cardCooldownMinutes = Number(s.cardCooldownMinutes ?? 1) || 0
+    profile.entrySmsEnabled = Boolean(s.entrySmsEnabled)
+    profile.exitSmsEnabled = Boolean(s.exitSmsEnabled)
   },
   { immediate: true },
 )
@@ -106,6 +118,17 @@ async function saveProfile(): Promise<void> {
   flex-direction: column;
   gap: var(--spacing-xs);
   font-size: var(--font-size-sm);
+}
+.form label.check {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+}
+.form label.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
 }
 .form__row {
   display: grid;

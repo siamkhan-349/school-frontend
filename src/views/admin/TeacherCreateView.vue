@@ -105,7 +105,7 @@ const autoPerDay = computed(() => {
 })
 const autoPerDayText = computed(() => autoPerDay.value.toLocaleString('en-IN'))
 const isPerDayAuto = computed(() => !(form.perDay > 0))
-// Input e auto value dekhay, user change korle override save hoy.
+// Input shows the auto value; a user change saves as an override.
 const perDayInput = computed({
   get: () => (form.perDay > 0 ? form.perDay : autoPerDay.value),
   set: (v: number) => {

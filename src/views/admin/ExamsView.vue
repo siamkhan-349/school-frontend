@@ -27,7 +27,10 @@
             <td><span class="chip" :class="`chip--${e.status}`">{{ e.status }}</span></td>
             <td class="row-actions-cell">
               <span class="row-actions">
-              <button v-if="e.status !== 'published'" class="link-btn" type="button" @click="setStatus(e.id, 'published')">
+              <RouterLink :to="`/admin/exams/${e.id}/merit`" class="link-btn">
+                Merit
+              </RouterLink>
+              <button v-if="e.status !== 'published'" class="link-btn" type="button" @click="askPublish(e.id, e.name)">
                 Publish
               </button>
               <button v-else class="link-btn" type="button" @click="setStatus(e.id, 'active')">
@@ -55,6 +58,15 @@
       @cancel="confirm.open = false"
       @confirm="doDelete"
     />
+
+    <PublishExamDialog
+      :open="pubAsk.open"
+      :exam-name="pubAsk.name"
+      :busy="publishing"
+      @cancel="pubAsk.open = false"
+      @publish-only="doPublish(false)"
+      @publish-sms="doPublish(true)"
+    />
   </div>
 </template>
 
@@ -64,6 +76,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import PublishExamDialog from '@/components/common/PublishExamDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import {
@@ -72,6 +85,7 @@ import {
   useExams,
   useExamStatus,
 } from '@/composables/useQueries'
+import { sendResultSmsForExam } from '@/composables/useResultSms'
 import { useToast } from '@/composables/useToast'
 import type { ExamStatus } from '@/types/models'
 
@@ -105,6 +119,42 @@ const classLabel = (id: string): string => classes.value.find((c) => c.id === id
 
 const { mutateAsync: changeStatus } = useExamStatus()
 const { mutateAsync: deleteExam } = useDeleteExam()
+
+// Publish dialog: with SMS or publish only — rank + total + failed subjects
+// go to the guardian's primary number (via the result template).
+const pubAsk = ref({ open: false, id: '', name: '' })
+const publishing = ref(false)
+function askPublish(id: string, name: string): void {
+  pubAsk.value = { open: true, id, name }
+}
+async function doPublish(withSms: boolean): Promise<void> {
+  const { id, name } = pubAsk.value
+  publishing.value = true
+  try {
+    await changeStatus({ id, status: 'published' })
+    pubAsk.value.open = false
+    if (!withSms) {
+      toast.success('Result published — parents can now see it')
+      return
+    }
+    try {
+      const report = await sendResultSmsForExam(id)
+      const failed = report.failed.length
+      toast.success(
+        report.sent > 0
+          ? `Published + ${report.sent} result SMS sent${failed > 0 ? ` · ${failed} failed (no phone)` : ''}`
+          : 'Published, but no SMS went out (no phone numbers)',
+      )
+      if (failed > 0) toast.error(`${failed} guardians have no phone number`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Published, but the SMS failed to send')
+    }
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed')
+  } finally {
+    publishing.value = false
+  }
+}
 
 async function setStatus(id: string, status: ExamStatus): Promise<void> {
   try {

@@ -61,7 +61,7 @@
               </optgroup>
             </select>
           </label>
-          <p v-if="teacherMismatch" class="muted">Note: {{ teacherMismatch }} is not assigned to {{ form.subjectLabel || 'this subject' }} (Teacher Subjects page) — substitute nileo cholbe.</p>
+          <p v-if="teacherMismatch" class="muted">Note: {{ teacherMismatch }} is not assigned to {{ form.subjectLabel || 'this subject' }} (Teacher Subjects page) — a substitute still works.</p>
         </template>
         <template v-if="mode === 'exam'">
           <AppCard title="Subjects (one sitting can cover several)" class="span-2">
@@ -108,7 +108,7 @@
         <label>End
           <input v-model="form.endTime" type="time" class="app-input__control" :min="classTimeMin" :max="classTimeMax" required />
         </label>
-        <p v-if="mode === 'class' && (schoolStart || schoolEnd)" class="muted">School time: {{ schoolStart || '…' }} – {{ schoolEnd || '…' }} (class period er vitorei hote hobe; exam jekono time e pare).</p>
+        <p v-if="mode === 'class' && (schoolStart || schoolEnd)" class="muted">School time: {{ schoolStart || '…' }} – {{ schoolEnd || '…' }} (class periods must fall inside; exams can be at any time).</p>
         <p v-if="formError" class="error">{{ formError }}</p>
         <div class="form-actions">
           <AppButton variant="ghost" type="button" @click="goBack">Cancel</AppButton>

@@ -2,7 +2,7 @@
   <div class="page">
     <div class="page__head">
       <h1 class="page__title">Teachers & Staff</h1>
-      <AppButton @click="router.push('/admin/teachers/new')">+ Add Teacher / Staff</AppButton>
+      <AppButton v-if="canManage" @click="router.push('/admin/teachers/new')">+ Add Teacher / Staff</AppButton>
     </div>
 
     <AppCard>
@@ -34,8 +34,8 @@
             <td class="row-actions-cell">
               <span class="row-actions">
               <button v-if="(t.kind || 'teacher') === 'teacher'" class="link-btn" type="button" @click="goSubjects(t)">Subjects</button>
-              <button class="link-btn" type="button" @click="openEdit(t)">Edit</button>
-              <button class="link-btn link-btn--danger" type="button" @click="askDelete(t.id, t.name)">Delete</button>
+              <button v-if="canManage" class="link-btn" type="button" @click="openEdit(t)">Edit</button>
+              <button v-if="canManage" class="link-btn link-btn--danger" type="button" @click="askDelete(t.id, t.name)">Delete</button>
               </span>
             </td>
           </tr>
@@ -123,10 +123,13 @@ import {
   useUpdateTeacher,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import { teacherService } from '@/services'
 import type { Teacher } from '@/types/models'
 
 const toast = useToast()
+const auth = useAuthStore()
+const canManage = computed(() => auth.can('admin.teachers.manage'))
 const router = useRouter()
 const search = ref('')
 const kindFilter = ref('')
@@ -171,7 +174,7 @@ const autoPerDay = computed(() => {
 })
 const autoPerDayText = computed(() => autoPerDay.value.toLocaleString('en-IN'))
 const isPerDayAuto = computed(() => !(form.perDay > 0))
-// Input e auto value dekhay, user change korle override save hoy.
+// Input shows the auto value; a user change saves as an override.
 const perDayInput = computed({
   get: () => (form.perDay > 0 ? form.perDay : autoPerDay.value),
   set: (v: number) => {

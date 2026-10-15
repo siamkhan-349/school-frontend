@@ -49,6 +49,14 @@ const ResultRow = defineComponent({
         h('td', topper.value),
         h('td', { class: 'row-actions' }, [
           h(RouterLink, { to: `/admin/exams/${props.exam.id}`, class: 'link-btn' }, () => 'Open'),
+          h(
+            RouterLink,
+            {
+              to: { path: `/admin/exams/${props.exam.id}/card`, query: { from: 'results' } },
+              class: 'link-btn',
+            },
+            () => 'Result Card',
+          ),
         ]),
       ])
   },
@@ -78,6 +86,10 @@ const ResultRow = defineComponent({
 }
 :deep(.row-actions) {
   text-align: right;
+  white-space: nowrap;
+}
+:deep(.row-actions .link-btn + .link-btn) {
+  margin-left: var(--spacing-md);
 }
 :deep(.link-btn) {
   color: var(--color-primary);

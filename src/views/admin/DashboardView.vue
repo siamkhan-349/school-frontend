@@ -55,7 +55,7 @@
           <span class="att-chip__label">Leave</span>
         </button>
       </div>
-      <p class="att-note">Card e click korle kara kara — full page talika khulbe.</p>
+      <p class="att-note">Click a card to open the full list page.</p>
     </AppCard>
 
     <div v-if="!isLoading && !isError" class="admin-dashboard__grid">
@@ -285,7 +285,7 @@ const liveAttendance = computed(() => liveData.value?.data ?? [])
 
 // ---------- Today's attendance strip (click a card → see WHO) ----------
 // Latest school day with marks (today isn't marked yet in the morning).
-// Picking a date overrides it — onno din dekhte chaile date bodlao.
+  // Picking a date overrides it — to view another day, change the date.
 const { data: attSumData } = useAttendanceSummary()
 const stripPicked = ref('')
 const stripDate = computed(() => stripPicked.value || attSumData.value?.data?.[0]?.date || new Date().toISOString().slice(0, 10))
@@ -296,8 +296,8 @@ const stripTitle = computed(() => {
   yd.setDate(now.getDate() - 1)
   const yesterday = yd.toISOString().slice(0, 10)
   const d = stripDate.value
-  // Hazira na thakle (sob 0) default latest din = yesterday → Yesterday dekhay.
-  // Aajker hazira start hole latest = today → Today dekhay.
+  // With no attendance at all (all 0) the default latest day = yesterday → shows Yesterday.
+  // Once today's attendance starts, latest = today → shows Today.
   if (d === today) return `Today's Attendance — ${d}`
   if (d === yesterday) return `Yesterday's Attendance — ${d}`
   return `Attendance — ${d}`

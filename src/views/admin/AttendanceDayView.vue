@@ -9,6 +9,12 @@
       <div class="page__actions">
         <AppButton variant="ghost" type="button" :disabled="filtered.length === 0" @click="exportCsv">CSV</AppButton>
         <AppButton variant="ghost" type="button" :disabled="filtered.length === 0" @click="exportPdf">PDF</AppButton>
+        <AppButton
+          v-if="status === 'absent' || status === 'late'"
+          type="button"
+          :disabled="filtered.length === 0"
+          @click="askDaySms"
+        >SMS Guardians ({{ filtered.length }})</AppButton>
       </div>
     </div>
 
@@ -46,12 +52,23 @@
             </td>
           </tr>
           <tr v-if="paged.length === 0">
-            <td colspan="7" class="muted">Keu nai ei talikay.</td>
+            <td colspan="7" class="muted">No records in this list.</td>
           </tr>
         </tbody>
       </table>
       <AppPagination v-model:page="page" v-model:per-page="perPage" :total="filtered.length" />
     </AppCard>
+
+    <AppConfirmDialog
+      :open="smsConfirm.open"
+      :title="status === 'late' ? 'Late SMS?' : 'Absent SMS?'"
+      :message="smsConfirm.message"
+      confirm-text="Send SMS"
+      confirm-variant="primary"
+      :busy="sendingSms"
+      @cancel="smsConfirm.open = false"
+      @confirm="doDaySms"
+    />
   </div>
 </template>
 
@@ -60,10 +77,12 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
-import { useAttendanceDay, useSettings } from '@/composables/useQueries'
+import { useAttendanceDay, useSendBulkSms, useSettings, useSmsTemplates } from '@/composables/useQueries'
 import { usePagedList } from '@/composables/usePagedList'
+import { useToast } from '@/composables/useToast'
 import { attendanceDayPdf, downloadCsv } from '@/utils/pdf'
 
 type StatusKey = 'present' | 'absent' | 'late' | 'leave'
@@ -119,6 +138,79 @@ function goBack(): void {
 
 const { data: settingsData } = useSettings()
 const schoolName = computed(() => settingsData.value?.data.schoolName || 'School')
+
+// Absent + Late tab: oi date er student der guardian ke SMS.
+// Absent → Absent Alert template (absentDate auto-filled). Late → late minutes
+// computed from entry time, each person messaged with their own time.
+const toast = useToast()
+const { data: tplData } = useSmsTemplates()
+const attendanceTemplates = computed(() => (tplData.value?.data ?? []).filter((t) => t.type === 'attendance'))
+// Absent Alert vs Late Alert — matched by name (both are attendance type).
+const absentTemplate = computed(
+  () => attendanceTemplates.value.find((t) => /absent/i.test(t.name)) ?? attendanceTemplates.value[0],
+)
+const lateTemplate = computed(() => attendanceTemplates.value.find((t) => /late/i.test(t.name)))
+const { mutateAsync: sendBulk, isPending: sendingSms } = useSendBulkSms()
+const smsConfirm = ref({ open: false, message: '' })
+const schoolStart = computed(() => settingsData.value?.data.schoolStartTime || '')
+
+function toMinutes(t: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})/.exec(t || '')
+  if (!m) return null
+  return Number(m[1]) * 60 + Number(m[2])
+}
+function lateMinutesOf(entryTime: string): number | null {
+  const start = toMinutes(schoolStart.value)
+  const entry = toMinutes(entryTime)
+  if (start == null || entry == null) return null
+  return Math.max(0, entry - start)
+}
+
+function askDaySms(): void {
+  const label = status.value === 'late' ? 'late' : 'absent'
+  smsConfirm.value = {
+    open: true,
+    message: `${date.value} — send SMS to guardians of ${filtered.value.length} ${label} students?`,
+  }
+}
+async function doDaySms(): Promise<void> {
+  // Formats come only from super-admin SMS Control — no hardcoded fallback.
+  // If the template was deleted, sending is blocked with directions on where to recreate it.
+  const isLate = status.value === 'late'
+  const tpl = isLate ? lateTemplate.value : absentTemplate.value
+  if (!tpl) {
+    toast.error(
+      isLate
+        ? 'No Late Alert template — ask a super admin to create it on the SMS Control page.'
+        : 'No Absent Alert template — ask a super admin to create it on the SMS Control page.',
+    )
+    return
+  }
+  try {
+    const res = await sendBulk({
+      templateId: tpl.id,
+      recipients: filtered.value.map((s) => ({
+        recipientId: s.studentId,
+        recipientType: 'guardian',
+        variables: isLate
+          ? {
+              lateMinutes: String(lateMinutesOf(s.entryTime || '') ?? ''),
+              entryTime: s.entryTime || '',
+            }
+          : undefined,
+      })),
+      variables: { absentDate: date.value },
+    })
+    smsConfirm.value.open = false
+    const failed = res.data.failed ?? []
+    toast.success(
+      res.data.sent > 0 ? `${res.data.sent} SMS sent` : 'No one could be reached (no phone numbers)',
+    )
+    if (failed.length > 0) toast.error(`${failed.length} have no phone number`)
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed')
+  }
+}
 function exportCsv(): void {
   downloadCsv(
     `attendance-${date.value}-${status.value}.csv`,

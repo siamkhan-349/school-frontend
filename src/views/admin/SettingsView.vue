@@ -57,9 +57,9 @@
 
         <AppCard title="Change Password">
           <form class="form" @submit.prevent="savePassword">
-            <label>Current password<input v-model="pwd.currentPassword" type="password" class="app-input__control" required autocomplete="current-password" /></label>
-            <label>New password (min 6 characters)<input v-model="pwd.newPassword" type="password" class="app-input__control" required minlength="6" autocomplete="new-password" /></label>
-            <label>Confirm new password<input v-model="pwd.confirm" type="password" class="app-input__control" required autocomplete="new-password" /></label>
+            <PasswordInput v-model="pwd.currentPassword" label="Current password" required autocomplete="current-password" />
+            <PasswordInput v-model="pwd.newPassword" label="New password (min 6 characters)" required :minlength="6" autocomplete="new-password" />
+            <PasswordInput v-model="pwd.confirm" label="Confirm new password" required autocomplete="new-password" />
             <AppButton type="submit" :disabled="savingPassword">
               {{ savingPassword ? 'Updating…' : 'Update Password' }}
             </AppButton>
@@ -89,6 +89,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import PasswordInput from '@/components/common/PasswordInput.vue'
 import { useChangePassword, useCreateSalaryType, useDeleteSalaryType, useSalaryTypes, useSettings, useUpdateSettings } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { useSchoolStore } from '@/stores/school'

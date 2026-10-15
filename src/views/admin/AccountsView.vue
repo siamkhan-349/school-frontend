@@ -16,7 +16,7 @@
     </div>
 
     <AppCard title="Opening Balance (carry-forward)">
-      <p class="muted head-hint">Bochor / period surur age haate koto taka chilo — ekbar likhun. Porer sob report e eta Opening hisebe auto asbe. <span v-if="openingCount">Ekhon {{ openingCount }} ta opening entry ache.</span></p>
+      <p class="muted head-hint">Cash in hand at the start of the year/period — recorded once. Every later report picks it up as Opening automatically. <span v-if="openingCount">There are now {{ openingCount }} opening entries.</span></p>
       <form class="head-form" @submit.prevent="saveOpening">
         <input v-model.number="openingForm.amount" type="number" min="0" step="0.01" class="app-input__control" placeholder="Amount (৳)" required />
         <input v-model="openingForm.date" type="date" class="app-input__control" />
@@ -27,7 +27,7 @@
     </AppCard>
 
     <AppCard title="Head-wise totals (same date filter)">
-      <p class="muted head-hint">Kon head e koto dhukse / koto khoroch hoise — uporer From/To date dile ekhaner hisab o bodle jabe.</p>
+      <p class="muted head-hint">How much came in / went out per head — pick a From/To date above and the figures here follow.</p>
       <div class="head-cols">
         <div>
           <h4 class="head-col-title head-col-title--in">Income by head</h4>
@@ -61,7 +61,7 @@
     </AppCard>
 
     <AppCard title="Income / Expense Heads">
-      <p class="muted head-hint">Proti school er head alada hote pare — ekhan theke nijer head banan. Egulo sudhu Accounts er jonno, student fee head er sathe somporko nai (oita <RouterLink to="/admin/fees">Fee Management</RouterLink> e).</p>
+      <p class="muted head-hint">Heads can differ per school — create your own here. These are Accounts-only and unrelated to student fee heads (those live under <RouterLink to="/admin/fees">Fee Management</RouterLink>).</p>
       <form class="head-form" @submit.prevent="saveHead">
         <select v-model="headForm.kind" class="app-input__control">
           <option value="income">Income</option>

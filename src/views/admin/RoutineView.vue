@@ -192,7 +192,7 @@ const roomFilter = ref('')
 const search = ref('')
 const searchFocus = ref(false)
 
-// Autocomplete: subject names matching the input, class name soho.
+// Autocomplete: subject names matching the input, with class names.
 const suggestions = computed(() => {
   const q = search.value.trim().toLowerCase()
   if (q.length < 2) return []
@@ -244,7 +244,7 @@ watch(classId, () => {
 })
 
 // Department filter (Class 9/10): subject's department decides.
-// department null = common subject → sob department e dekhay.
+// department null = common subject → shown in every department.
 const filterClass = computed(() => classes.value.find((c) => c.id === classId.value))
 const { data: filterDeptData } = useDepartments(() => classId.value || undefined)
 const filterDepartments = computed(() => filterDeptData.value?.data ?? [])
@@ -277,7 +277,7 @@ const routines = computed(() => {
     .filter((r) => !classId.value || r.classId === classId.value)
     .filter((r) => {
       if (!sectionLabel.value) return true
-      // Whole-class period (no section) sob section ei hoy.
+      // Whole-class period (no section) happens in every section.
       if (!r.sectionId) return true
       return (sectionLabelOf.value.get(r.sectionId) || '').trim() === sectionLabel.value
     })
@@ -290,7 +290,7 @@ const routines = computed(() => {
     .filter((r) => !roomFilter.value || (r.room || '').trim() === roomFilter.value)
     .filter((r) => {
       if (!q) return true
-      // Subject-only search (exam mode: exam name too, nahole khuje pawa jeto na).
+      // Subject-only search (exam mode: exam name too, otherwise unfindable).
       if (mode.value === 'exam' && r.title.toLowerCase().includes(q)) return true
       return [r.subjectLabel, ...(r.subjects ?? [])].join(' ').toLowerCase().includes(q)
     })
@@ -302,7 +302,7 @@ const visibleRows = computed(() => [...routines.value].sort((a, b) =>
     : (`${WEEK_DAYS.indexOf(a.day)}${a.startTime}`.localeCompare(`${WEEK_DAYS.indexOf(b.day)}${b.startTime}`)),
 ))
 
-// Class serial: choto class age (Class 1 → Class 10), label number onujayi.
+// Class order: smaller classes first (Class 1 → Class 10), by label number.
 function classRank(id: string): number {
   const label = classLabel(id)
   const m = /(\d+)/.exec(label)

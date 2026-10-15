@@ -311,6 +311,7 @@ export interface SubjectMarkInput {
 export interface StudentSubjectMarks {
   studentId: string
   studentName: string
+  roll?: number | null
   subjects: {
     subjectId: string
     name: string
@@ -497,20 +498,56 @@ export interface LeaveRequest {
   note: string
 }
 
+// ---------- user logins (teacher / accountant / parent) ----------
+export type AppUserRole = 'teacher' | 'accountant' | 'parent'
+export interface AppUserChild {
+  id: string
+  name: string
+  roll: string
+}
+export interface AppUser {
+  id: string
+  role: string
+  name: string
+  username: string
+  phone: string
+  profileId: string
+  /** Linked Teacher/Staff public id (teacher role only). */
+  teacherId?: string
+  status: 'active' | 'inactive'
+  lastLogin: string
+  createdAt: string
+  updatedAt: string
+  children: AppUserChild[]
+}
+
 // ---------- communication ----------
 export interface SmsTemplate {
   id: string
   name: string
   type: string
   body: string
+  variables?: string[]
+}
+
+export interface SmsBalance {
+  total: number
+  used: number
+  remaining: number
 }
 
 export interface SmsLog {
   id: string
+  templateId?: string
   templateName: string
+  templateType?: string
+  examName?: string
   audience: string
+  recipientName?: string
+  phone?: string
   count: number
   message: string
+  status?: string
   sentAt: string
 }
 
@@ -521,8 +558,10 @@ export interface SchoolEvent {
   title: string
   description: string
   eventDate: string
+  location?: string
   type: 'news' | 'event' | 'exam' | 'meeting' | 'notice'
-  audience: 'all' | 'students' | 'teachers' | 'parents'
+  // No panel for students — guardians (parents) cover them.
+  audience: 'all' | 'teachers' | 'parents'
   status: EventStatus
 }
 
@@ -549,6 +588,9 @@ export interface SchoolSettings {
   /** Fixed breaks: {from: YYYY-MM-DD, to?: YYYY-MM-DD, label}. */
   holidays: HolidaySpan[]
   resultSmsMode: 'after_publish' | 'per_student'
+  /** Card-tap auto SMS toggles (super-admin only). */
+  entrySmsEnabled: boolean
+  exitSmsEnabled: boolean
   enabledModules: string[]
 }
 

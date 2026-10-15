@@ -8,6 +8,7 @@ import { adminRoutes } from './modules/admin'
 import { liveRoutes } from './modules/live'
 import { parentRoutes } from './modules/parent'
 import { superAdminRoutes } from './modules/super-admin'
+import { teacherRoutes } from './modules/teacher'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -17,8 +18,8 @@ const router = createRouter({
     ...liveRoutes,
     ...parentRoutes,
     ...superAdminRoutes,
-    { path: '/', redirect: '/admin/dashboard' },
-    { path: '/access-denied', component: StatusView, props: { code: '403', message: 'Access denied.' } },
+    ...teacherRoutes,
+    { path: '/', redirect: '/admin/dashboard' },    { path: '/access-denied', component: StatusView, props: { code: '403', message: 'Access denied.' } },
     { path: '/module-unavailable', component: StatusView, props: { code: '402', message: 'Module not enabled.' } },
     { path: '/:pathMatch(.*)*', component: StatusView, props: { code: '404', message: 'Page not found.' } },
   ],
@@ -51,9 +52,15 @@ router.beforeEach(async (to) => {
     if (!allowed) return '/access-denied'
   }
 
-  // The live-display login sees one page only — never the admin dashboard.
+  // Role landing: each login starts in its own panel.
   if (to.path === '/admin/dashboard' && auth.user?.role === 'monitor') {
     return '/live'
+  }
+  if (to.path === '/admin/dashboard' && auth.user?.role === 'parent') {
+    return '/parent/dashboard'
+  }
+  if (to.path === '/admin/dashboard' && auth.user?.role === 'teacher') {
+    return '/teacher/dashboard'
   }
 
   const gate = to.meta.module as string | string[] | undefined
