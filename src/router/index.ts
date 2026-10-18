@@ -21,6 +21,7 @@ const router = createRouter({
     ...teacherRoutes,
     { path: '/', redirect: '/admin/dashboard' },    { path: '/access-denied', component: StatusView, props: { code: '403', message: 'Access denied.' } },
     { path: '/module-unavailable', component: StatusView, props: { code: '402', message: 'Module not enabled.' } },
+    { path: '/suspended', component: StatusView, props: { code: '402', message: 'Institute suspended — features are locked. Contact the platform to restore access.' } },
     { path: '/:pathMatch(.*)*', component: StatusView, props: { code: '404', message: 'Page not found.' } },
   ],
 })
@@ -42,6 +43,12 @@ router.beforeEach(async (to) => {
     auth.logout()
     school.reset()
     return '/login'
+  }
+
+  // Suspended institute (modules []): the whole panel locks to a status page.
+  // Super admins keep working — they are the ones who restore the modules.
+  if (school.suspended && auth.user?.role !== 'super_admin') {
+    return '/suspended'
   }
 
   const permission = to.meta.permission as string | string[] | undefined

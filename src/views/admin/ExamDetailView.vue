@@ -164,6 +164,9 @@
                   </RouterLink>
                 </td>
               </tr>
+              <tr v-if="pagedRows.length === 0">
+                <td :colspan="singleSubject ? 9 : visibleSubjects.length + 4" class="muted">No students in this class/section yet.</td>
+              </tr>
             </tbody>
           </table>
           </div>

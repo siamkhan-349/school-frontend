@@ -37,6 +37,10 @@ export const useSchoolStore = defineStore('school', () => {
     if (loaded.value && !force) return
     const res = await apiClient.get<{ modules: string[]; examEntryMode?: 'admin' | 'teacher' | 'marks'; examCombinedSitting?: boolean }>('/school/modules')
     enabledModules.value = res.data.modules
+    // H16a semantics: an existing subscription with an empty list means every
+    // module is off ("suspended"). The router turns this into /suspended —
+    // login and the super-admin workspaces stay reachable.
+    suspended.value = Array.isArray(res.data.modules) && res.data.modules.length === 0
     examEntryMode.value = res.data.examEntryMode ?? 'admin'
     examCombinedSitting.value = Boolean(res.data.examCombinedSitting)
     loaded.value = true

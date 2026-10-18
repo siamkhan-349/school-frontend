@@ -22,6 +22,9 @@
               <RouterLink :to="`/parent/children/${c.id}`" class="link-btn">View</RouterLink>
             </td>
           </tr>
+          <tr v-if="children.length === 0">
+            <td colspan="5" class="muted">No children are linked to this login yet — ask the school office.</td>
+          </tr>
         </tbody>
       </table>
     </AppCard>

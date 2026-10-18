@@ -39,6 +39,9 @@
               </span>
             </td>
           </tr>
+          <tr v-if="rows.length === 0">
+            <td colspan="9" class="muted">No teachers or staff yet — use + Add Teacher / Staff to add the first one.</td>
+          </tr>
         </tbody>
       </table>
 

@@ -77,6 +77,9 @@
               </span>
             </td>
           </tr>
+          <tr v-if="rows.length === 0">
+            <td colspan="8" class="muted">No students yet — use + Admit Student to add the first one.</td>
+          </tr>
         </tbody>
       </table>
       </div>
