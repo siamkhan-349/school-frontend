@@ -21,7 +21,7 @@
     <p v-else-if="isError" class="error">Failed to load dashboard.</p>
 
     <div v-else class="admin-dashboard__stats">
-      <AppCard v-for="stat in statCards" :key="stat.label">
+      <AppCard v-for="stat in visibleStatCards" :key="stat.label">
         <RouterLink :to="stat.to" class="stat-card__link">
           <p class="stat-card__label">{{ stat.label }}</p>
           <p class="stat-card__value">{{ stat.value }}</p>
@@ -180,6 +180,7 @@ import {
 } from 'chart.js'
 import { Bar } from 'vue-chartjs'
 import { useRouter } from 'vue-router'
+import type { ModuleKey } from '@/constants/modules'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
@@ -329,6 +330,8 @@ interface StatCard {
   value: string
   note: string
   to: string
+  /** Card belongs to a module; hidden while that module is off. */
+  module?: ModuleKey
 }
 
 const statCards = computed<StatCard[]>(() => [
@@ -343,26 +346,35 @@ const statCards = computed<StatCard[]>(() => [
     value: (totals.value.activeTeachers ?? 0).toLocaleString(),
     note: 'teaching now',
     to: '/admin/teachers',
+    module: 'staff',
   },
   {
     label: 'Collected This Month',
     value: formatTaka(totals.value.collectedThisMonth ?? totals.value.revenueThisMonth ?? 0),
     note: 'collected',
     to: '/admin/payments',
+    module: 'payment',
   },
   {
     label: "Today's Attendance",
     value: (overview.value.presentToday ?? 0).toLocaleString(),
     note: 'present today',
     to: '/admin/attendance?tab=student',
+    module: 'attendance',
   },
   {
     label: 'Outstanding Dues',
     value: formatTaka(overview.value.duesAmount ?? 0),
     note: `${outstandingRows.value.length} students owe`,
     to: '/admin/fees/dues',
+    module: 'payment',
   },
 ])
+
+/** Cards whose module is off are hidden — value, note and link all belong to it. */
+const visibleStatCards = computed(() =>
+  statCards.value.filter((s) => !s.module || school.hasModule(s.module)),
+)
 
 const chartOptions: ChartOptions<'bar'> = {
   responsive: true,
