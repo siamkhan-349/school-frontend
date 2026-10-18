@@ -1,45 +1,59 @@
 <template>
   <div class="page">
     <h1 class="page__title">Module Management</h1>
-    <AppCard>
-      <p class="muted">Super-admin only. Base modules — Core, Students, Academic Setup and SMS — ship with every school and stay locked here. Toggle the add-ons to lock/unlock them for the whole school: locked modules hide instantly from sidebar and routes. Admins cannot change these.</p>
-      <p v-if="isLoading" class="muted">Loading…</p>
-      <table v-else class="table">
-        <thead>
-          <tr><th>Module</th><th>Category</th><th>Status</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="m in MODULE_CATALOG" :key="m.key">
-            <td>{{ m.label }}</td>
-            <td>{{ m.category }}</td>
-            <td>
+    <p class="page__lead">
+      Super-admin only. Base modules — Core, Students, Academic Setup and SMS — ship with every
+      school and stay locked. Toggle the add-ons to lock/unlock them for the whole school: locked
+      modules hide instantly from the sidebar and routes. Admins cannot change these.
+    </p>
+
+    <p v-if="isLoading" class="muted">Loading…</p>
+    <template v-else>
+      <section v-for="group in groups" :key="group.title" class="module-group">
+        <h2 class="module-group__title">{{ group.title }}</h2>
+        <div class="module-grid">
+          <article
+            v-for="m in group.items"
+            :key="m.key"
+            class="module-card"
+            :class="{ 'module-card--off': !enabledSet.has(m.key) }"
+          >
+            <header class="module-card__head">
+              <h3 class="module-card__name">{{ m.label }}</h3>
               <span class="chip" :class="{ 'chip--off': !enabledSet.has(m.key) }">
                 {{ enabledSet.has(m.key) ? 'enabled' : 'disabled' }}
               </span>
-            </td>
-            <td class="row-actions">
-              <button
-                v-if="!m.locked"
-                class="link-btn"
-                type="button"
+            </header>
+            <p class="module-card__desc">{{ m.description }}</p>
+            <ul class="module-card__features">
+              <li v-for="feature in m.features" :key="feature">{{ feature }}</li>
+            </ul>
+            <footer class="module-card__foot">
+              <span v-if="m.locked" class="module-card__lock">
+                <Lock :size="14" aria-hidden="true" />
+                Always on — locked
+              </span>
+              <AppButton
+                v-else
+                :variant="enabledSet.has(m.key) ? 'ghost' : 'primary'"
                 :disabled="saving"
                 @click="toggle(m.key)"
               >
                 {{ enabledSet.has(m.key) ? 'Disable' : 'Enable' }}
-              </button>
-              <span v-else class="muted">locked</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </AppCard>
+              </AppButton>
+            </footer>
+          </article>
+        </div>
+      </section>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import AppCard from '@/components/common/AppCard.vue'
-import { MODULE_CATALOG } from '@/constants/modules'
+import { computed, ref, watch } from 'vue'
+import { Lock } from 'lucide-vue-next'
+import AppButton from '@/components/common/AppButton.vue'
+import { MODULE_CATALOG, type ModuleCatalogEntry } from '@/constants/modules'
 import { useModules, useUpdateModules } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { useSchoolStore } from '@/stores/school'
@@ -50,6 +64,31 @@ const school = useSchoolStore()
 const { data, isLoading } = useModules()
 const { mutateAsync: updateModules, isPending: saving } = useUpdateModules()
 const enabledSet = ref<Set<string>>(new Set())
+
+const GROUP_TITLES: Record<string, string> = {
+  Core: 'Base modules — always on',
+  Academics: 'Academics add-ons',
+  Finance: 'Finance add-ons',
+  Communication: 'Communication add-ons',
+  Portal: 'Portal add-ons',
+}
+
+// Sections follow catalog order (base first), then first-seen category order.
+const groups = computed(() => {
+  const order: string[] = []
+  const byCategory = new Map<string, ModuleCatalogEntry[]>()
+  for (const m of MODULE_CATALOG) {
+    if (!byCategory.has(m.category)) {
+      byCategory.set(m.category, [])
+      order.push(m.category)
+    }
+    byCategory.get(m.category)?.push(m)
+  }
+  return order.map((category) => ({
+    title: GROUP_TITLES[category] ?? category,
+    items: byCategory.get(category) ?? [],
+  }))
+})
 
 watch(
   data,
@@ -78,26 +117,102 @@ async function toggle(key: string): Promise<void> {
 .page__title {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
+}
+.page__lead {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  max-width: 860px;
+  margin-bottom: var(--spacing-xl);
 }
 .muted {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
 }
-.table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--font-size-sm);
-  margin-top: var(--spacing-sm);
+.module-group {
+  margin-bottom: var(--spacing-xl);
 }
-.table th,
-.table td {
-  text-align: left;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-bottom: 1px solid var(--color-border);
+.module-group__title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-md);
+}
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--spacing-md);
+}
+.module-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+.module-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+.module-card__name {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+.module-card__desc {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+.module-card__features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.module-card__features li {
+  display: flex;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+.module-card__features li::before {
+  content: '';
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin-top: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+}
+.module-card--off .module-card__features {
+  opacity: 0.55;
+}
+.module-card__foot {
+  margin-top: auto;
+  padding-top: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+.module-card__lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
 }
 .chip {
   display: inline-block;
+  flex: none;
   padding: 2px var(--spacing-sm);
   border-radius: var(--radius-full);
   background: var(--color-success-light);
@@ -107,17 +222,5 @@ async function toggle(key: string): Promise<void> {
 .chip--off {
   background: var(--color-surface-alt);
   color: var(--color-text-muted);
-}
-.row-actions {
-  text-align: right;
-}
-.link-btn {
-  background: none;
-  border: none;
-  color: var(--color-primary);
-  font-size: var(--font-size-sm);
-}
-.link-btn:disabled {
-  opacity: 0.5;
 }
 </style>
