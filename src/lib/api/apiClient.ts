@@ -56,13 +56,19 @@ export class ApiClient {
         }
 
         if (error.response) {
-          const raw = error.response.data as { detail?: string } | undefined
+          const raw = error.response.data as { detail?: string; message?: string } | undefined
           const detail = typeof raw === 'object' && raw !== null ? raw.detail : undefined
+          const backendMessage = typeof raw === 'object' && raw !== null ? raw.message : undefined
           const fail = (message: string): ApiError => ({ success: false, message: detail || message })
           if (status === 401) error.response.data = fail('Unauthenticated. Please log in.')
           else if (status === 403) error.response.data = fail('You do not have permission for this action.')
           else if (status === 404) error.response.data = fail('Not found.')
           else if (status === 500) error.response.data = fail('Server error. Please try again later.')
+          // Other statuses (400 validation guards and the like) keep the
+          // backend's own envelope; mirror its message onto the error so a
+          // caller showing `error.message` shows the server's words rather
+          // than "Request failed with status code 400".
+          else if (backendMessage) error.message = backendMessage
         }
         return Promise.reject(error)
       },

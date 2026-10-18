@@ -653,13 +653,6 @@ export const smsService = {
   deleteTemplate(id: string): Promise<ApiResponse<null>> {
     return apiClient.delete<null>(`/sms/templates/${id}`)
   },
-  send(
-    templateId: string | null,
-    audience: string,
-    classId?: string,
-  ): Promise<ApiResponse<{ sent: number; failed: { recipientId: string; message: string }[] }>> {
-    return apiClient.post('/sms/send', { templateId, audience, classId })
-  },
   sendBulk(input: {
     body?: string
     templateId?: string

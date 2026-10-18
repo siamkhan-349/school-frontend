@@ -1158,18 +1158,6 @@ export function useSendBulkSms() {
   })
 }
 
-export function useSendSms() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ templateId, audience, classId }: { templateId: string | null; audience: string; classId?: string }) =>
-      smsService.send(templateId, audience, classId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sms-logs'] })
-      qc.invalidateQueries({ queryKey: ['sms-balance'] })
-    },
-  })
-}
-
 export function useSmsBalance() {
   return useQuery({ queryKey: ['sms-balance'], queryFn: () => smsService.balance() })
 }
