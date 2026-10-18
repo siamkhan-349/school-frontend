@@ -7,13 +7,13 @@
       <AppCard title="Students">
         <strong class="stat">{{ students.length }}</strong>
       </AppCard>
-      <AppCard title="Teachers">
+      <AppCard v-if="school.hasModule('staff')" title="Teachers">
         <strong class="stat">{{ teachers.length }}</strong>
       </AppCard>
       <AppCard title="Total Dues (৳)">
         <strong class="stat">{{ totalDues }}</strong>
       </AppCard>
-      <AppCard title="Pass Rate (latest published)">
+      <AppCard v-if="school.hasModule('exam_result')" title="Pass Rate (latest published)">
         <strong class="stat">{{ passRate }}%</strong>
       </AppCard>
     </div>
@@ -29,7 +29,7 @@
       </AppCard>
     </div>
 
-    <div class="report-head">
+    <div v-if="school.hasModule('accounts')" class="report-head">
       <h2 class="section-title">Accounts Report — Income vs Expense</h2>
       <div class="report-actions">
         <AppButton variant="ghost" type="button" :disabled="!accSummary" @click="exportCSV">Export CSV</AppButton>
@@ -38,7 +38,7 @@
       </div>
     </div>
 
-    <AppCard>
+    <AppCard v-if="school.hasModule('accounts')">
       <div class="preset-row">
         <button
           v-for="p in presets"
@@ -147,12 +147,14 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import { useChartPalette } from '@/composables/useChartPalette'
 import { useClasses, useExams, useExamResults, useLedgerSummary, useSettings, useStudents, useTeachers } from '@/composables/useQueries'
+import { useSchoolStore } from '@/stores/school'
 import { printWithTitle } from '@/utils/print'
 import { accountsReportPdf } from '@/utils/pdf'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const { palette } = useChartPalette()
+const school = useSchoolStore()
 
 const { data: studentData } = useStudents({ perPage: 500 })
 const students = computed(() => studentData.value?.data.items ?? [])

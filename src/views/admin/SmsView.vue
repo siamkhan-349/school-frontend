@@ -70,6 +70,7 @@
             @click="sendMode = 'exam'"
           >Exam Result</button>
           <button
+            v-if="school.hasModule('staff')"
             type="button"
             class="main-tab"
             :class="{ 'main-tab--active': sendMode === 'teachers' }"
@@ -300,7 +301,7 @@
           <p v-if="examSmsResult" class="success">{{ examSmsResult }}</p>
           <AppButton type="submit" :disabled="sendingExam">{{ sendingExam ? 'Sending…' : 'Send Result SMS' }}</AppButton>
         </form>
-        <form v-else-if="sendMode === 'teachers'" class="form" @submit.prevent="sendTeacherSms">
+        <form v-else-if="sendMode === 'teachers' && school.hasModule('staff')" class="form" @submit.prevent="sendTeacherSms">
           <p class="muted">All teachers with a phone number — teacher-only message.</p>
           <div class="roster">
             <div class="roster__head">
@@ -451,9 +452,11 @@ import {
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
+import { useSchoolStore } from '@/stores/school'
 import { buildResultVariables } from '@/utils/resultSms'
 
 const auth = useAuthStore()
+const school = useSchoolStore()
 // System templates: only super admin can add/edit/remove (also locked in backend).
 const canManageTemplates = computed(() => auth.user?.role === 'super_admin')
 
