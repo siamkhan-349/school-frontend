@@ -1,4 +1,4 @@
-/** Shared API envelope — mock and live MUST return identical shapes. */
+/** Shared API envelope — every endpoint MUST return this shape. */
 export interface ApiResponse<T> {
   success: true
   message: string
