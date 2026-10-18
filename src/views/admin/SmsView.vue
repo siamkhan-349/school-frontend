@@ -64,6 +64,7 @@
             @click="sendMode = 'general'"
           >General</button>
           <button
+            v-if="school.hasModule('exam_result')"
             type="button"
             class="main-tab"
             :class="{ 'main-tab--active': sendMode === 'exam' }"
@@ -249,7 +250,7 @@
             {{ sendingGeneral ? 'Sending…' : `Send (${generalRecipients.length})` }}
           </AppButton>
         </form>
-        <form v-else-if="sendMode === 'exam'" class="form" @submit.prevent="sendExamSms">
+        <form v-else-if="sendMode === 'exam' && school.hasModule('exam_result')" class="form" @submit.prevent="sendExamSms">
           <label>Published exam
             <select v-model="examSms.examId" class="app-input__control">
               <option value="">Select exam…</option>

@@ -8,7 +8,7 @@
         </p>
       </div>
       <div class="admin-dashboard__actions">
-        <RouterLink to="/admin/fees/collect" class="action-link">
+        <RouterLink v-if="school.hasModule('payment')" to="/admin/fees/collect" class="action-link">
           <AppButton variant="ghost" type="button">Collect Fee</AppButton>
         </RouterLink>
         <RouterLink to="/admin/students/new" class="action-link">
@@ -30,7 +30,7 @@
       </AppCard>
     </div>
 
-    <AppCard v-if="!isLoading && !isError" class="panel-card">
+    <AppCard v-if="!isLoading && !isError && school.hasModule('attendance')" class="panel-card">
       <div class="panel-card__header">
         <h2 class="panel-card__title">{{ stripTitle }}</h2>
         <div class="panel-card__tools">
@@ -79,7 +79,7 @@
         </div>
       </AppCard>
 
-      <AppCard class="panel-card">
+      <AppCard v-if="school.hasModule('payment')" class="panel-card">
         <div class="panel-card__header">
           <h2 class="panel-card__title">Top Dues</h2>
           <RouterLink to="/admin/fees/dues" class="panel-card__link">All</RouterLink>
@@ -101,7 +101,7 @@
         <p v-else class="panel-card__empty">No outstanding dues.</p>
       </AppCard>
 
-      <AppCard class="panel-card">
+      <AppCard v-if="school.hasModule('attendance')" class="panel-card">
         <div class="panel-card__header">
           <h2 class="panel-card__title">Live Attendance</h2>
           <RouterLink to="/admin/attendance?tab=student" class="panel-card__link">Open</RouterLink>
@@ -145,7 +145,7 @@
         <p v-else class="panel-card__empty">No students yet.</p>
       </AppCard>
 
-      <AppCard class="panel-card">
+      <AppCard v-if="school.hasModule('exam_result')" class="panel-card">
         <div class="panel-card__header">
           <h2 class="panel-card__title">Recent Exams</h2>
           <RouterLink to="/admin/exams" class="panel-card__link">View all</RouterLink>
@@ -196,11 +196,13 @@ import {
   useStudents,
 } from '@/composables/useQueries'
 import { useAuthStore } from '@/stores/auth'
+import { useSchoolStore } from '@/stores/school'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
 const { palette } = useChartPalette()
 const auth = useAuthStore()
+const school = useSchoolStore()
 const router = useRouter()
 
 interface OverviewTotals {
