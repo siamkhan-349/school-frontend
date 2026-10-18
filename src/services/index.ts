@@ -557,13 +557,6 @@ export const payrollService = {
   salaries(month?: number, year?: number, perPage = 500): Promise<ApiResponse<SalaryRecord[]>> {
     return apiClient.get<SalaryRecord[]>('/salary', { params: { month, year, perPage } })
   },
-  generate(input: {
-    teacherId: string; month: number; year: number;
-    basic: number; allowance: number; deduction: number;
-    bonus?: number; paymentDate?: string; notes?: string;
-  }): Promise<ApiResponse<SalaryRecord>> {
-    return apiClient.post<SalaryRecord>('/salary', input)
-  },
   markPaid(id: string): Promise<ApiResponse<SalaryRecord>> {
     return apiClient.post<SalaryRecord>(`/salary/${id}/pay`)
   },
@@ -594,13 +587,6 @@ export const payrollService = {
     month: number; year: number; rows: SheetDraftRow[];
   }>> {
     return apiClient.get('/salary/sheet-draft', { params: { month, year } })
-  },
-  /** Leave-driven deduction suggestion for a teacher + month. */
-  deductions(teacherId: string, month: string): Promise<ApiResponse<{
-    teacherId: string; month: string; days: number; workingDays: number;
-    perDay: number; amount: number;
-  }>> {
-    return apiClient.get('/salary/deductions', { params: { teacherId, month } })
   },
   leaves(perPage = 500): Promise<ApiResponse<LeaveRequest[]>> {
     return apiClient.get<LeaveRequest[]>('/leaves', { params: { perPage } })

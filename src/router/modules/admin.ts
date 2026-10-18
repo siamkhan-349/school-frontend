@@ -42,7 +42,6 @@ import TeachersView from '@/views/admin/TeachersView.vue'
 import TeacherCreateView from '@/views/admin/TeacherCreateView.vue'
 import TeacherSubjectsView from '@/views/admin/TeacherSubjectsView.vue'
 import UsersView from '@/views/admin/UsersView.vue'
-import PlaceholderView from '@/views/admin/PlaceholderView.vue'
 
 export const adminRoutes: RouteRecordRaw[] = [
   {

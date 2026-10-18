@@ -952,19 +952,6 @@ export function useSalaries(month?: MaybeReactive<number | undefined>, year?: Ma
   })
 }
 
-export function useGenerateSalary() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (input: {
-      teacherId: string; month: number; year: number;
-      basic: number; allowance: number; deduction: number;
-      bonus?: number; paymentDate?: string; notes?: string;
-    }) => payrollService.generate(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['salaries']
-}),
-  })
-}
-
 export function useDeleteSalary() {
   const qc = useQueryClient()
   return useMutation({

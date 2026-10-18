@@ -279,7 +279,7 @@ export interface StudentAttendance {
   createdAt?: string
 }
 
-export type ExamStatus = 'draft' | 'active' | 'published' | 'completed'
+export type ExamStatus = 'draft' | 'active' | 'published'
 
 export interface Exam {
   id: string
