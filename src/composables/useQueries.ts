@@ -25,7 +25,7 @@ import {
 } from '@/services'
 import type { StudentBulkRecord, StudentInput, StudentStatus, TeacherInput } from '@/types/models'
 import type { ListParams } from '@/types/api'
-import type { AttendanceMark, ExamStatus, ExamSubjectInput, LeaveStatus, RoutineInput, SalaryRecord, SchoolEvent, SubjectConfigInput, SubjectMarkInput, TeacherExamMarkInput } from '@/types/models'
+import type { AttendanceMark, ExamStatus, ExamSubjectInput, LeaveRequest, LeaveStatus, RoutineInput, SalaryRecord, SchoolEvent, SubjectConfigInput, SubjectMarkInput, TeacherExamMarkInput } from '@/types/models'
 
 type ParamSource = ListParams | Ref<ListParams> | (() => ListParams)
 
@@ -1076,7 +1076,19 @@ export function usePaySalary() {
 }
 
 export function useLeaves() {
-  return useQuery({ queryKey: ['leaves'], queryFn: () => payrollService.leaves() })
+  return useQuery({
+    queryKey: ['leaves'],
+    queryFn: async () => {
+      const res = await payrollService.leaves()
+      // List endpoint envelopes rows as {items, pagination} — unwrap so
+      // consumers always get a plain array (same as salaries).
+      const raw = res.data as unknown
+      const items = Array.isArray(raw)
+        ? raw
+        : (raw as { items?: LeaveRequest[] } | null)?.items ?? []
+      return { ...res, data: items }
+    },
+  })
 }
 
 export function useApplyLeave() {

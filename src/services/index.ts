@@ -602,8 +602,8 @@ export const payrollService = {
   }>> {
     return apiClient.get('/salary/deductions', { params: { teacherId, month } })
   },
-  leaves(): Promise<ApiResponse<LeaveRequest[]>> {
-    return apiClient.get<LeaveRequest[]>('/leaves')
+  leaves(perPage = 500): Promise<ApiResponse<LeaveRequest[]>> {
+    return apiClient.get<LeaveRequest[]>('/leaves', { params: { perPage } })
   },
   applyLeave(input: {
     teacherId: string; type: string; startDate: string; endDate: string; note: string
