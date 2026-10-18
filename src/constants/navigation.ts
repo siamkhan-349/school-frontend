@@ -1,9 +1,11 @@
+import type { ModuleKey } from './modules'
+
 export interface NavItem {
   name: string
   path: string
   icon: string
   permission: string
-  module?: string | string[]
+  module?: ModuleKey | ModuleKey[]
   section?: string
   /** Only visible when the institute runs teacher-side exam entry. */
   examEntry?: boolean
@@ -23,7 +25,7 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   { name: 'Academics', path: '/admin/academics', icon: 'academics', permission: 'admin.dashboard.view', module: 'core', section: 'Academics' },
   { name: 'Students', path: '/admin/students', icon: 'students', permission: 'admin.students.view', module: 'core', section: 'People' },
   { name: 'Card IDs', path: '/admin/students/cards', icon: 'students', permission: 'admin.students.manage', module: 'core', section: 'People' },
-  { name: 'Teachers & Staff', path: '/admin/teachers', icon: 'people', permission: 'admin.teachers.view', section: 'People' },
+  { name: 'Teachers & Staff', path: '/admin/teachers', icon: 'people', permission: 'admin.teachers.view', module: 'staff', section: 'People' },
   { name: 'Routine', path: '/admin/routine', icon: 'routine', permission: 'admin.routine.view', module: 'routine', section: 'Academics' },
   { name: 'Attendance', path: '/admin/attendance', icon: 'attendance', permission: 'admin.attendance.view', module: 'attendance', section: 'Academics' },
   { name: 'Live Attendance', path: '/live', icon: 'attendance', permission: 'admin.attendance.view', module: 'attendance', section: 'Academics' },
@@ -35,12 +37,12 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   { name: 'Dues List', path: '/admin/fees/dues', icon: 'payments', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
   { name: 'Payments', path: '/admin/payments', icon: 'invoice', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
   { name: 'Payroll', path: '/admin/payroll', icon: 'salary', permission: 'admin.dashboard.view', module: 'payroll', section: 'Finance' },
-  { name: 'Accounts', path: '/admin/accounts', icon: 'invoice', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
+  { name: 'Accounts', path: '/admin/accounts', icon: 'invoice', permission: 'admin.payments.view', module: 'accounts', section: 'Finance' },
   { name: 'SMS', path: '/admin/sms', icon: 'sms', permission: 'admin.dashboard.view', module: 'core', section: 'Communication' },
   { name: 'Notice & Events', path: '/admin/events', icon: 'news', permission: 'admin.dashboard.view', module: 'notice', section: 'Communication' },
-  { name: 'Reports', path: '/admin/reports', icon: 'reports', permission: 'admin.reports.view', section: 'System' },
-  { name: 'Users', path: '/admin/users', icon: 'people', permission: 'admin.users.view', section: 'System' },
-  { name: 'Settings', path: '/admin/settings', icon: 'settings', permission: 'admin.dashboard.view', section: 'System' },
+  { name: 'Reports', path: '/admin/reports', icon: 'reports', permission: 'admin.reports.view', module: 'reports', section: 'System' },
+  { name: 'Users', path: '/admin/users', icon: 'people', permission: 'admin.users.view', module: 'users', section: 'System' },
+  { name: 'Settings', path: '/admin/settings', icon: 'settings', permission: 'admin.dashboard.view', module: 'settings', section: 'System' },
 ]
 
 /** The live-display login sees exactly one page. */
@@ -53,14 +55,14 @@ export const ACCOUNTANT_NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard', permission: 'admin.dashboard.view', section: 'Overview' },
   { name: 'Students', path: '/admin/students', icon: 'students', permission: 'admin.students.view', module: 'core', section: 'People' },
   { name: 'Card IDs', path: '/admin/students/cards', icon: 'students', permission: 'admin.students.manage', module: 'core', section: 'People' },
-  { name: 'Teachers & Staff', path: '/admin/teachers', icon: 'people', permission: 'admin.teachers.view', section: 'People' },
+  { name: 'Teachers & Staff', path: '/admin/teachers', icon: 'people', permission: 'admin.teachers.view', module: 'staff', section: 'People' },
   { name: 'Collect Fee', path: '/admin/fees/collect', icon: 'payments', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
   { name: 'Fee', path: '/admin/fees', icon: 'payments', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
   { name: 'Dues List', path: '/admin/fees/dues', icon: 'payments', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
   { name: 'Payments', path: '/admin/payments', icon: 'invoice', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
   { name: 'Payroll', path: '/admin/payroll', icon: 'salary', permission: 'admin.dashboard.view', module: 'payroll', section: 'Finance' },
-  { name: 'Accounts', path: '/admin/accounts', icon: 'invoice', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
-  { name: 'Reports', path: '/admin/reports', icon: 'reports', permission: 'admin.reports.view', section: 'System' },
+  { name: 'Accounts', path: '/admin/accounts', icon: 'invoice', permission: 'admin.payments.view', module: 'accounts', section: 'Finance' },
+  { name: 'Reports', path: '/admin/reports', icon: 'reports', permission: 'admin.reports.view', module: 'reports', section: 'System' },
 ]
 
 export const SUPER_ADMIN_NAV_ITEMS: NavItem[] = [  { name: 'Dashboard', path: '/super-admin/dashboard', icon: 'dashboard', permission: 'super-admin.dashboard.view' },

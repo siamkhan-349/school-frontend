@@ -4,7 +4,9 @@
     <p class="page__lead">
       Super-admin only. Core ships with every school and stays locked — it carries the platform,
       students, academic setup and free SMS. Toggle the add-ons to lock/unlock them for the whole
-      school: locked modules hide instantly from the sidebar and routes. Admins cannot change these.
+      school: locked modules hide instantly from the sidebar and routes. Portal modules gate the
+      role logins themselves — a locked panel cannot sign in at all, and new accounts of that
+      role are refused. Admins cannot change any of these.
     </p>
 
     <p v-if="isLoading" class="muted">Loading…</p>
@@ -28,6 +30,7 @@
             <ul class="module-card__features">
               <li v-for="feature in m.features" :key="feature">{{ feature }}</li>
             </ul>
+            <p v-if="m.note" class="module-card__note">{{ m.note }}</p>
             <footer class="module-card__foot">
               <span v-if="m.locked" class="module-card__lock">
                 <Lock :size="14" aria-hidden="true" />
@@ -68,9 +71,11 @@ const enabledSet = ref<Set<string>>(new Set())
 const GROUP_TITLES: Record<string, string> = {
   Core: 'Base — always on',
   Academics: 'Academics add-ons',
+  People: 'People add-ons',
   Finance: 'Finance add-ons',
   Communication: 'Communication add-ons',
   Portal: 'Portal add-ons',
+  System: 'System add-ons',
 }
 
 // Sections follow catalog order (base first), then first-seen category order.
@@ -102,12 +107,21 @@ async function toggle(key: string): Promise<void> {
   const next = new Set(enabledSet.value)
   if (next.has(key)) next.delete(key)
   else next.add(key)
+  const before = enabledSet.value
   enabledSet.value = next
   try {
-    await updateModules([...next])
+    const res = await updateModules([...next])
+    // The resolver returns the final list — dependencies can pull a key back.
+    const final = new Set(res.data?.enabledModules ?? [...next])
+    enabledSet.value = final
     await school.refresh()
-    toast.success(`Module ${next.has(key) ? 'enabled' : 'disabled'}`)
+    if (final.has(key) === next.has(key)) {
+      toast.success(`Module ${next.has(key) ? 'enabled' : 'disabled'}`)
+    } else {
+      toast.error('Kept on — another enabled module needs it')
+    }
   } catch {
+    enabledSet.value = before
     toast.error('Update failed')
   }
 }
@@ -191,6 +205,12 @@ async function toggle(key: string): Promise<void> {
   margin-top: 8px;
   border-radius: var(--radius-full);
   background: var(--color-primary);
+}
+.module-card__note {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-style: italic;
+  line-height: var(--line-height-normal);
 }
 .module-card--off .module-card__features {
   opacity: 0.55;

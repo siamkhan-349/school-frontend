@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { satisfiesModuleGate } from '@/constants/modules'
+import { satisfiesModuleGate, type ModuleKey } from '@/constants/modules'
 import { useAuthStore } from '@/stores/auth'
 import { useSchoolStore } from '@/stores/school'
 import LoginView from '@/views/auth/LoginView.vue'
@@ -9,6 +9,14 @@ import { liveRoutes } from './modules/live'
 import { parentRoutes } from './modules/parent'
 import { superAdminRoutes } from './modules/super-admin'
 import { teacherRoutes } from './modules/teacher'
+
+/** Role -> the module that owns its login panel; the shell needs it. */
+const PANEL_MODULE: Record<string, ModuleKey> = {
+  teacher: 'teacher',
+  accountant: 'accountant',
+  monitor: 'monitor',
+  parent: 'parent',
+}
 
 const router = createRouter({
   history: createWebHistory(),
@@ -20,7 +28,7 @@ const router = createRouter({
     ...superAdminRoutes,
     ...teacherRoutes,
     { path: '/', redirect: '/admin/dashboard' },    { path: '/access-denied', component: StatusView, props: { code: '403', message: 'Access denied.' } },
-    { path: '/module-unavailable', component: StatusView, props: { code: '402', message: 'Module not enabled.' } },
+    { path: '/module-unavailable', component: StatusView, props: { code: '402', message: 'This feature is not enabled for your institute.' } },
     { path: '/suspended', component: StatusView, props: { code: '402', message: 'Institute suspended — features are locked. Contact the platform to restore access.' } },
     { path: '/:pathMatch(.*)*', component: StatusView, props: { code: '404', message: 'Page not found.' } },
   ],
@@ -51,6 +59,12 @@ router.beforeEach(async (to) => {
     return '/suspended'
   }
 
+  // Role panels are module-based like everything else: with the panel's
+  // module off the whole shell answers the status page — the lock the parent
+  // portal always had, now applied to teacher/accountant/monitor too.
+  const panel = PANEL_MODULE[auth.user?.role ?? '']
+  if (panel && !school.hasModule(panel)) return '/module-unavailable'
+
   const permission = to.meta.permission as string | string[] | undefined
   if (permission) {
     const allowed = Array.isArray(permission)
@@ -70,7 +84,7 @@ router.beforeEach(async (to) => {
     return '/teacher/dashboard'
   }
 
-  const gate = to.meta.module as string | string[] | undefined
+  const gate = to.meta.module as ModuleKey | ModuleKey[] | undefined
   if (!satisfiesModuleGate(gate, (k) => school.hasModule(k))) return '/module-unavailable'
 
   return true

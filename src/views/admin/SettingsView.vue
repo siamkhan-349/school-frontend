@@ -66,7 +66,7 @@
           </form>
         </AppCard>
 
-        <AppCard title="Salary Types">
+        <AppCard v-if="school.hasModule('payroll')" title="Salary Types">
           <div v-if="!salaryTypes.length" class="muted">No salary types yet — add Monthly first.</div>
           <ul v-else class="type-list">
             <li v-for="t in salaryTypes" :key="t.id" class="type-list__row">

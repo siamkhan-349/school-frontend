@@ -3,17 +3,25 @@ export const MODULES = {
   ATTENDANCE: 'attendance',
   ROUTINE: 'routine',
   EXAM_RESULT: 'exam_result',
+  STAFF: 'staff',
   PAYMENT: 'payment',
   PAYROLL: 'payroll',
+  ACCOUNTS: 'accounts',
   NOTICE: 'notice',
+  TEACHER: 'teacher',
+  ACCOUNTANT: 'accountant',
+  MONITOR: 'monitor',
   PARENT: 'parent',
+  REPORTS: 'reports',
+  USERS: 'users',
+  SETTINGS: 'settings',
 } as const
 
 export type ModuleKey = (typeof MODULES)[keyof typeof MODULES]
 
 /** "any of" semantics — a list means ANY key opens the page. */
 export function satisfiesModuleGate(
-  gate: string | string[] | undefined,
+  gate: ModuleKey | ModuleKey[] | undefined,
   hasModule: (key: string) => boolean,
 ): boolean {
   if (!gate) return true
@@ -21,14 +29,16 @@ export function satisfiesModuleGate(
 }
 
 export interface ModuleCatalogEntry {
-  key: string
+  key: ModuleKey
   label: string
-  category: 'Core' | 'Academics' | 'Finance' | 'Communication' | 'Portal'
+  category: 'Core' | 'Academics' | 'People' | 'Finance' | 'Communication' | 'Portal' | 'System'
   locked?: boolean
   /** One-line pitch shown on the module card. */
   description: string
   /** What the module actually contains — kept in sync with the routes. */
   features: string[]
+  /** Dependency hint shown under the features (resolver pulls the key in). */
+  note?: string
 }
 
 /**
@@ -45,12 +55,10 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
     locked: true,
     description: 'Ships with every school — the platform shell, students, academic setup and free SMS (sends use the credit balance).',
     features: [
-      'Logins, roles & permissions',
-      'School settings & role dashboards',
+      'Logins, roles & dashboards',
       'Students — admissions, guardians & ID cards',
       'Bulk import (CSV/Excel)',
       'Academics — sessions, classes, sections & subjects',
-      'Teacher–subject assignment & class hours',
       'SMS — templates, bulk send & log',
     ],
   },
@@ -93,6 +101,19 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
     ],
   },
   {
+    key: 'staff',
+    label: 'Teachers & Staff',
+    category: 'People',
+    description: 'Teacher, staff and employee records — profiles, subjects and photos.',
+    features: [
+      'Teacher & staff records',
+      'Employee directory',
+      'Teacher–subject assignment & class hours',
+      'Photos & contact details',
+    ],
+    note: 'Enabled automatically while Attendance, Routine, Exams, Payroll, Notice or Users is on.',
+  },
+  {
     key: 'payment',
     label: 'Fees & Payments',
     category: 'Finance',
@@ -117,6 +138,18 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
     ],
   },
   {
+    key: 'accounts',
+    label: 'Accounts & Ledger',
+    category: 'Finance',
+    description: 'School fund ledger — money in and out with heads and period summaries.',
+    features: [
+      'Income & expense entries',
+      'Ledger heads & totals',
+      'Balance summary by period',
+      'Month-wise income vs expense',
+    ],
+  },
+  {
     key: 'notice',
     label: 'Notice & Events',
     category: 'Communication',
@@ -129,6 +162,42 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
     ],
   },
   {
+    key: 'teacher',
+    label: 'Teacher Panel',
+    category: 'Portal',
+    description: 'Teacher logins — own dashboard, schedule, leaves, salary slips and marks entry.',
+    features: [
+      'Teacher logins',
+      'Own dashboard & profile',
+      'Schedule, leaves & salary slips',
+      'Marks entry (with Exam & Result)',
+    ],
+  },
+  {
+    key: 'accountant',
+    label: 'Accountant Panel',
+    category: 'Portal',
+    description: 'Finance-staff logins — a scoped admin panel for fees, payroll and accounts.',
+    features: [
+      'Accountant logins',
+      'Students & fee collection',
+      'Payments, payroll & accounts',
+      'Reports access (with Reports)',
+    ],
+  },
+  {
+    key: 'monitor',
+    label: 'Monitor Panel',
+    category: 'Portal',
+    description: 'Live display logins — card-tap arrivals on a screen at the gate.',
+    features: [
+      'Monitor (display) logins',
+      'Live card-tap screen',
+      'Auto-refreshing arrival feed',
+    ],
+    note: 'Needs Attendance — enabled together.',
+  },
+  {
     key: 'parent',
     label: 'Parent Portal',
     category: 'Portal',
@@ -138,6 +207,43 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
       'Routine & results',
       'Fees, dues & receipts',
       'Notices & events feed',
+    ],
+  },
+  {
+    key: 'reports',
+    label: 'Reports',
+    category: 'System',
+    description: 'Analytics page — student and dues charts, pass-rate snapshot and income-vs-expense statement.',
+    features: [
+      'Student & dues charts',
+      'Pass-rate snapshot',
+      'Income vs expense report (with Accounts)',
+      'CSV / PDF / print export',
+    ],
+  },
+  {
+    key: 'users',
+    label: 'Users',
+    category: 'System',
+    description: 'Login management — create and manage teacher, parent and accountant logins.',
+    features: [
+      'Login accounts list',
+      'Role, status & password control',
+      'Teacher-login linking',
+      'Guardian child linking',
+    ],
+    note: 'Needs Teachers & Staff — enabled together.',
+  },
+  {
+    key: 'settings',
+    label: 'Settings',
+    category: 'System',
+    description: 'The school profile — name, address, timings, holidays and preferences.',
+    features: [
+      'School profile & timings',
+      'Weekly & fixed holidays',
+      'Change password',
+      'Salary types (with Payroll)',
     ],
   },
 ]
