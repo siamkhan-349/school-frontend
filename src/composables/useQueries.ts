@@ -1248,6 +1248,33 @@ export function useParentResults(studentId: MaybeReactive<string>) {
   })
 }
 
+/**
+ * Distinct published exams across the signed-in parent's children.
+ *
+ * The dashboard's "Published Results" card used to count rows from
+ * GET /results, an admin-only endpoint — the parent query always failed
+ * into a silent 0. The count now comes from the scoped /parent/results
+ * rows themselves.
+ */
+export function useParentPublishedResults() {
+  return useQuery({
+    queryKey: ['parent-published-results'],
+    queryFn: async () => {
+      const childRes = await studentService.list({ perPage: 500 })
+      const children = childRes.data?.items ?? []
+      const settled = await Promise.allSettled(
+        children.map((child) => parentService.results(child.id)),
+      )
+      const examIds = new Set<string>()
+      for (const entry of settled) {
+        if (entry.status !== 'fulfilled') continue
+        for (const row of entry.value.data ?? []) examIds.add(row.examId)
+      }
+      return { count: examIds.size }
+    },
+  })
+}
+
 // ---------- settings (super-admin only for writes) ----------
 export function useSettings() {
   return useQuery({ queryKey: ['settings'], queryFn: () => settingsService.get() })

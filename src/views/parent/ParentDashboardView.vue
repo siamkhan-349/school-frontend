@@ -35,16 +35,14 @@
 import { computed } from 'vue'
 import AppCard from '@/components/common/AppCard.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
-import { useEvents, useExams, useStudents } from '@/composables/useQueries'
+import { useEvents, useParentPublishedResults, useStudents } from '@/composables/useQueries'
 
 const { data: studentData } = useStudents({ perPage: 500 })
 const children = computed(() => studentData.value?.data.items ?? [])
 const totalDue = computed(() => children.value.reduce((sum, s) => sum + s.dueAmount, 0))
 
-const { data: examData } = useExams({ perPage: 500 })
-const publishedCount = computed(
-  () => (examData.value?.data.items ?? []).filter((e) => e.status === 'published').length,
-)
+const { data: resultCount } = useParentPublishedResults()
+const publishedCount = computed(() => resultCount.value?.count ?? 0)
 
 const { data: eventData } = useEvents()
 const upcomingEvents = computed(
