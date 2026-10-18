@@ -22,7 +22,8 @@
             v-if="exam.status !== 'published'"
             variant="ghost"
             :disabled="publishing"
-            @click="pubAsk = true"
+            :title="pendingSubjects.length ? `Waiting on: ${pendingSubjects.map((s) => s.name).join(', ')}` : 'Publish this result'"
+            @click="openPublish"
           >
             Publish
           </AppButton>
@@ -36,6 +37,48 @@
           <AppButton :disabled="saving || exam.status === 'published'" @click="saveAll">{{ saving ? 'Saving…' : 'Save Marks' }}</AppButton>
         </div>
       </div>
+
+      <AppCard v-if="setupVisible" title="Subject Setup" class="setup-card">
+        <div class="setup-head">
+          <span class="muted">{{ configuredCount }} of {{ exam.subjects.length }} subjects configured</span>
+          <span v-if="pendingSubjects.length" class="chip chip--warn">{{ pendingSubjects.length }} waiting</span>
+          <span v-else class="chip chip--ok">All set</span>
+        </div>
+        <p v-if="pendingSubjects.length" class="muted setup-note">
+          Publishing is blocked while a subject is still waiting. Assign its teacher, or fill the
+          subject yourself with Fill.
+        </p>
+        <div class="table-scroll">
+          <table class="table setup-table">
+            <thead>
+              <tr><th>Subject</th><th>Teacher</th><th>Config</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in exam.subjects" :key="s.id">
+                <td class="setup-name">{{ s.name }}</td>
+                <td>
+                  <span v-if="s.teacherName">{{ s.teacherName }}<span v-if="(s.teacherCount ?? 0) > 1" class="muted"> +{{ (s.teacherCount ?? 1) - 1 }}</span></span>
+                  <span v-else class="chip chip--warn">No teacher</span>
+                </td>
+                <td>
+                  <span v-if="subjectConfigured(s)" class="chip chip--ok">{{ setupSummary(s) }}</span>
+                  <span v-else class="chip chip--warn">Pending</span>
+                </td>
+                <td class="setup-actions">
+                  <button
+                    class="link-btn"
+                    type="button"
+                    :disabled="locked || !s.subjectId"
+                    :title="!s.subjectId ? 'Not linked to an Academics subject' : 'Assign a teacher to this subject'"
+                    @click="openAssign(s)"
+                  >Assign</button>
+                  <button class="link-btn" type="button" :disabled="locked" @click="openFill(s)">Fill</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </AppCard>
 
       <div>
         <AppCard title="Marks Entry">
@@ -129,6 +172,73 @@
         </AppCard>
       </div>
     </template>
+    <Teleport to="body">
+      <div v-if="fillAsk" class="dialog-backdrop" @click.self="fillAsk = false">
+        <div class="dialog" role="dialog" aria-modal="true">
+          <h3 class="dialog__title">Fill subject — {{ fillSubject?.name }}</h3>
+          <p class="muted">Admin fallback for a subject with no teacher (or a teacher who has not filled it). Still editable until the exam is published.</p>
+          <div class="fill-grid">
+            <label>Category
+              <select v-model="fillForm.mode" class="app-input__control">
+                <option value="cq">Only CQ</option>
+                <option value="mcq">Only MCQ</option>
+                <option value="both">CQ+MCQ</option>
+              </select>
+            </label>
+            <template v-if="fillForm.mode === 'cq'">
+              <label>CQ full<input v-model.number="fillForm.cqFull" type="number" min="0" class="app-input__control" /></label>
+              <label>CQ pass<input v-model.number="fillForm.cqPass" type="number" min="0" class="app-input__control" /></label>
+            </template>
+            <template v-else-if="fillForm.mode === 'mcq'">
+              <label>MCQ full<input v-model.number="fillForm.mcqFull" type="number" min="0" class="app-input__control" /></label>
+              <label>MCQ pass<input v-model.number="fillForm.mcqPass" type="number" min="0" class="app-input__control" /></label>
+            </template>
+            <template v-else>
+              <label>CQ full<input v-model.number="fillForm.cqFull" type="number" min="0" class="app-input__control" /></label>
+              <label v-if="fillForm.passRule === 'separate'">CQ pass<input v-model.number="fillForm.cqPass" type="number" min="0" class="app-input__control" /></label>
+              <label>MCQ full<input v-model.number="fillForm.mcqFull" type="number" min="0" class="app-input__control" /></label>
+              <label v-if="fillForm.passRule === 'separate'">MCQ pass<input v-model.number="fillForm.mcqPass" type="number" min="0" class="app-input__control" /></label>
+              <label>Pass rule
+                <select v-model="fillForm.passRule" class="app-input__control">
+                  <option value="separate">Separate (CQ + MCQ pass separately)</option>
+                  <option value="combine">Combine (total decides pass)</option>
+                </select>
+              </label>
+            </template>
+            <label>Pass marks<input v-model.number="fillForm.passMarks" type="number" min="0" class="app-input__control" /></label>
+            <p class="muted span">Full marks will be {{ fillFull }} (sum of the parts in use).</p>
+          </div>
+          <p v-if="fillError" class="error">{{ fillError }}</p>
+          <div class="dialog__actions">
+            <AppButton variant="ghost" :disabled="fillSaving" @click="fillAsk = false">Cancel</AppButton>
+            <AppButton :disabled="fillSaving" @click="saveFill">{{ fillSaving ? 'Saving…' : 'Save' }}</AppButton>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+    <Teleport to="body">
+      <div v-if="assignAsk" class="dialog-backdrop" @click.self="assignAsk = false">
+        <div class="dialog" role="dialog" aria-modal="true">
+          <h3 class="dialog__title">Assign teacher — {{ assignSubject?.name }}</h3>
+          <p class="muted">The assigned teacher fills this subject and its student marks from the teacher panel.</p>
+          <label>Teacher
+            <select v-model="assignTeacherId" class="app-input__control">
+              <option value="">Select a teacher</option>
+              <option v-for="t in teacherChoices" :key="t.id" :value="t.id">{{ t.name }}{{ t.designation ? ` — ${t.designation}` : '' }}</option>
+            </select>
+          </label>
+          <p v-if="assignSubject?.teacherName && assignTeacherId !== assignSubject?.teacherId" class="muted">
+            {{ assignSubject.name }} already has {{ assignSubject.teacherName }} — remove that assignment
+            from Teachers first to replace.
+          </p>
+          <p v-if="assignError" class="error">{{ assignError }}</p>
+          <div class="dialog__actions">
+            <AppButton variant="ghost" :disabled="assignSaving" @click="assignAsk = false">Cancel</AppButton>
+            <AppButton :disabled="assignSaving || !assignTeacherId" @click="saveAssign">{{ assignSaving ? 'Assigning…' : 'Assign' }}</AppButton>
+          </div>
+        </div>
+      </div>
+    </Teleport>
     <PublishExamDialog
       v-if="exam"
       :open="pubAsk"
@@ -143,6 +253,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useQueryClient } from '@tanstack/vue-query'
 import { useRoute } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
@@ -154,13 +265,17 @@ import {
   useDepartments,
   useExam,
   useExamStatus,
+  usePatchExamSubject,
   useResultEntries,
   useSaveResultEntries,
   useSections,
+  useTeachers,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { sendResultSmsForExam } from '@/composables/useResultSms'
-import type { ExamStatus, ExamSubject } from '@/types/models'
+import { teacherSubjectService } from '@/services'
+import { useSchoolStore } from '@/stores/school'
+import type { ExamStatus, ExamSubject, SubjectConfigInput } from '@/types/models'
 
 const toast = useToast()
 const route = useRoute()
@@ -169,6 +284,26 @@ const examId = computed(() => String(route.params.id ?? ''))
 const { data: examData, isLoading: examLoading } = useExam(examId)
 const exam = computed(() => examData.value?.data)
 const locked = computed(() => exam.value?.status === 'published')
+
+// Teacher-entry modes: show who owns each subject + setup progress on the
+// exam card (shell mode and marks-only mode both keep the names visible).
+const school = useSchoolStore()
+
+function subjectConfigured(s: ExamSubject): boolean {
+  return s.configured ?? (Number(s.fullMarks) || 0) > 0
+}
+const pendingSubjects = computed(() => (exam.value?.subjects ?? []).filter((s) => !subjectConfigured(s)))
+const configuredCount = computed(() => (exam.value?.subjects ?? []).filter(subjectConfigured).length)
+const setupVisible = computed(
+  () => Boolean(exam.value) && (school.examEntryMode !== 'admin' || pendingSubjects.value.length > 0),
+)
+function setupSummary(s: ExamSubject): string {
+  const mode = cellMode(s)
+  if (mode === 'both') return `CQ ${s.cqFull} + MCQ ${s.mcqFull}`
+  if (mode === 'cq') return `CQ · Full ${s.fullMarks}`
+  if (mode === 'mcq') return `MCQ · Full ${s.fullMarks}`
+  return `Full ${s.fullMarks}`
+}
 
 const { data: classData } = useClasses()
 const classLabel = (id: string): string => classData.value?.data.find((c) => c.id === id)?.label ?? id
@@ -376,6 +511,15 @@ async function publish(status: ExamStatus): Promise<void> {
 // Publish dialog: with SMS or publish only
 const pubAsk = ref(false)
 const smsBusy = ref(false)
+// Teacher-entry guard client-side: the backend blocks it too, but the toast
+// tells the admin exactly which subjects are missing.
+function openPublish(): void {
+  if (pendingSubjects.value.length) {
+    toast.error(`Waiting on subject setup: ${pendingSubjects.value.map((s) => s.name).join(', ')}`)
+    return
+  }
+  pubAsk.value = true
+}
 async function doPublish(withSms: boolean): Promise<void> {
   smsBusy.value = true
   try {
@@ -452,6 +596,112 @@ function autoFill(): void {
   }
   if (filled === 0) toast.success('All cells already have marks')
   else toast.success(`${filled} cells filled with demo marks — click Save Marks`)
+}
+
+// ----- Subject setup: admin fallback fill + teacher assignment -----
+const { mutateAsync: patchSubject, isPending: fillSaving } = usePatchExamSubject()
+const fillAsk = ref(false)
+const fillSubject = ref<ExamSubject | null>(null)
+const fillError = ref('')
+const fillForm = reactive({
+  mode: 'both' as 'cq' | 'mcq' | 'both',
+  cqFull: 70,
+  cqPass: 23,
+  mcqFull: 30,
+  mcqPass: 10,
+  passMarks: 33,
+  passRule: 'separate' as 'separate' | 'combine',
+})
+const fillFull = computed(() => {
+  if (fillForm.mode === 'both') return (Number(fillForm.cqFull) || 0) + (Number(fillForm.mcqFull) || 0)
+  if (fillForm.mode === 'cq') return Number(fillForm.cqFull) || 0
+  return Number(fillForm.mcqFull) || 0
+})
+function openFill(s: ExamSubject): void {
+  fillSubject.value = s
+  const m = cellMode(s)
+  fillForm.mode = m === 'single' ? 'both' : m
+  fillForm.cqFull = Number(s.cqFull) || 70
+  fillForm.cqPass = Number(s.cqPass) || 23
+  fillForm.mcqFull = Number(s.mcqFull) || 30
+  fillForm.mcqPass = Number(s.mcqPass) || 10
+  fillForm.passMarks = Number(s.passMarks) || 33
+  fillForm.passRule = s.passRule === 'combine' ? 'combine' : 'separate'
+  fillError.value = ''
+  fillAsk.value = true
+}
+async function saveFill(): Promise<void> {
+  const s = fillSubject.value
+  if (!s) return
+  const full = fillFull.value
+  if (full <= 0) {
+    fillError.value = 'Full marks must be above 0.'
+    return
+  }
+  let payload: SubjectConfigInput
+  if (fillForm.mode === 'cq') {
+    payload = {
+      fullMarks: full, passMarks: Number(fillForm.passMarks) || 0,
+      cqFull: full, cqPass: Math.min(Number(fillForm.cqPass) || 0, full),
+      mcqFull: 0, mcqPass: 0, passRule: 'separate',
+    }
+  } else if (fillForm.mode === 'mcq') {
+    payload = {
+      fullMarks: full, passMarks: Number(fillForm.passMarks) || 0,
+      cqFull: 0, cqPass: 0,
+      mcqFull: full, mcqPass: Math.min(Number(fillForm.mcqPass) || 0, full),
+      passRule: 'separate',
+    }
+  } else {
+    const combined = fillForm.passRule === 'combine'
+    payload = {
+      fullMarks: full, passMarks: Number(fillForm.passMarks) || 0,
+      cqFull: Number(fillForm.cqFull) || 0,
+      cqPass: combined ? 0 : Number(fillForm.cqPass) || 0,
+      mcqFull: Number(fillForm.mcqFull) || 0,
+      mcqPass: combined ? 0 : Number(fillForm.mcqPass) || 0,
+      passRule: fillForm.passRule,
+    }
+  }
+  fillError.value = ''
+  try {
+    await patchSubject({ id: examId.value, subjectId: s.id, input: payload })
+    fillAsk.value = false
+    toast.success(`${s.name} saved`)
+  } catch (e) {
+    fillError.value = e instanceof Error ? e.message : 'Save failed'
+  }
+}
+
+const qc = useQueryClient()
+const { data: teacherData } = useTeachers({})
+const teacherChoices = computed(() => (teacherData.value?.data.items ?? []).filter((t) => t.kind !== 'staff'))
+const assignAsk = ref(false)
+const assignSubject = ref<ExamSubject | null>(null)
+const assignTeacherId = ref('')
+const assignError = ref('')
+const assignSaving = ref(false)
+function openAssign(s: ExamSubject): void {
+  assignSubject.value = s
+  assignTeacherId.value = s.teacherId || ''
+  assignError.value = ''
+  assignAsk.value = true
+}
+async function saveAssign(): Promise<void> {
+  const s = assignSubject.value
+  if (!s || !s.subjectId || !assignTeacherId.value) return
+  assignSaving.value = true
+  assignError.value = ''
+  try {
+    await teacherSubjectService.assign(assignTeacherId.value, s.subjectId)
+    qc.invalidateQueries({ queryKey: ['exam'] })
+    assignAsk.value = false
+    toast.success(`Teacher assigned to ${s.name}`)
+  } catch (e) {
+    assignError.value = e instanceof Error ? e.message : 'Assign failed'
+  } finally {
+    assignSaving.value = false
+  }
 }
 </script>
 
@@ -810,5 +1060,92 @@ function autoFill(): void {
   color: var(--color-primary);
   font-size: var(--font-size-sm);
   text-decoration: none;
+}
+.setup-card {
+  margin-bottom: var(--spacing-lg);
+}
+.setup-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+.setup-note {
+  margin-bottom: var(--spacing-sm);
+}
+.setup-table td {
+  vertical-align: middle;
+}
+.setup-name {
+  font-weight: var(--font-weight-medium);
+}
+.setup-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  white-space: nowrap;
+}
+.setup-actions .link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+.setup-actions .link-btn:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+.chip--ok {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+.chip--warn {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+  padding: var(--spacing-lg);
+}
+.dialog {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-lg);
+  width: min(460px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+.dialog__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+.fill-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-sm) var(--spacing-md);
+}
+.fill-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+.fill-grid .span {
+  grid-column: 1 / -1;
 }
 </style>

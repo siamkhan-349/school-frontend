@@ -34,7 +34,7 @@
         <input v-model="search" class="app-input__control" placeholder="Search name / roll…" />
       </FilterPanel>
       <p v-if="isLoading && dayRows.length === 0" class="muted">Loading day sheet…</p>
-      <p v-else-if="isError" class="error">Failed to load. <button class="link-btn" type="button" @click="refetch">Retry</button></p>
+      <p v-else-if="isError" class="error">Failed to load. <button class="link-btn" type="button" @click="refetch()">Retry</button></p>
       <table v-else class="table">
         <thead>
           <tr><th>SL</th><th>Student</th><th>Roll</th><th>Class</th><th>Entry</th><th>Exit</th><th></th></tr>

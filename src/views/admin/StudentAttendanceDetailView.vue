@@ -14,7 +14,7 @@
     <p v-if="historyLoading && allRecords.length === 0" class="muted">Loading attendance…</p>
     <p v-else-if="historyError && allRecords.length === 0" class="error">
       Attendance load hoyni ({{ historyError }}). Internet/backend check kore
-      <button type="button" class="link-btn" @click="refetchHistory">try again</button>.
+      <button type="button" class="link-btn" @click="refetchHistory()">try again</button>.
     </p>
 
     <template v-else>

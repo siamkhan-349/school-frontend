@@ -19,6 +19,25 @@
             <option value="per_student">Per student</option>
           </select>
         </label>
+        <label>Exam entry mode
+          <select v-model="profile.examEntryMode" class="app-input__control">
+            <option value="admin">Admin fills everything (classic)</option>
+            <option value="teacher">Teachers fill their own subjects</option>
+            <option value="marks">Admin fills subjects, teachers enter marks</option>
+          </select>
+        </label>
+        <p class="muted form__hint">
+          Teacher mode: the admin creates only the exam shell (name, date, class, section) and each
+          subject's assigned teacher fills its category, marks bars and student marks from the
+          teacher panel. Marks-only mode: the admin fills every subject's category and marks bars,
+          and each subject's teacher enters only the student marks. An exam with subjects still
+          waiting cannot be published.
+        </p>
+        <label class="check">
+          <input v-model="profile.examCombinedSitting" type="checkbox" />
+          Combined exam sittings — one sitting may cover several subjects (off = the standard
+          one subject per sitting; the exam routine builder follows this)
+        </label>
         <label>Card cooldown (minutes after issue before taps work, 0 = off)
           <input v-model.number="profile.cardCooldownMinutes" type="number" min="0" class="app-input__control" />
         </label>
@@ -62,6 +81,8 @@ const profile = reactive({
   schoolStartTime: '',
   schoolEndTime: '',
   resultSmsMode: 'after_publish' as 'after_publish' | 'per_student',
+  examEntryMode: 'admin' as 'admin' | 'teacher' | 'marks',
+  examCombinedSitting: false,
   cardCooldownMinutes: 1,
   entrySmsEnabled: false,
   exitSmsEnabled: false,
@@ -78,6 +99,8 @@ watch(
     profile.schoolStartTime = s.schoolStartTime
     profile.schoolEndTime = s.schoolEndTime
     profile.resultSmsMode = s.resultSmsMode
+    profile.examEntryMode = s.examEntryMode ?? 'admin'
+    profile.examCombinedSitting = Boolean(s.examCombinedSitting)
     profile.cardCooldownMinutes = Number(s.cardCooldownMinutes ?? 1) || 0
     profile.entrySmsEnabled = Boolean(s.entrySmsEnabled)
     profile.exitSmsEnabled = Boolean(s.exitSmsEnabled)
@@ -134,6 +157,9 @@ async function saveProfile(): Promise<void> {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--spacing-sm);
+}
+.form__hint {
+  margin: 0;
 }
 .kv {
   display: flex;

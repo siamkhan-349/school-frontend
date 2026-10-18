@@ -23,13 +23,6 @@
             <option v-for="s in formSections" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
         </label>
-        <label>Exam category
-          <select v-model="form.category" class="app-input__control">
-            <option value="cq">Only CQ</option>
-            <option value="mcq">Only MCQ</option>
-            <option value="both">CQ+MCQ</option>
-          </select>
-        </label>
         <label v-if="selectedClass?.hasDepartments">Department
           <select v-model="form.departmentId" class="app-input__control">
             <option :value="null">All departments</option>
@@ -42,6 +35,20 @@
           </button>
           <span>Include common subjects</span>
         </div>
+        <template v-if="teacherMode && form.classId">
+          <div class="span subj-head"><strong>Subjects (auto)</strong></div>
+          <p class="muted span">
+            Teacher entry is on: you create only the exam shell — each subject's teacher fills its
+            category, marks bars and student marks from the teacher panel. An exam with subjects
+            still waiting cannot be published.
+          </p>
+          <p v-if="classSubjects.length === 0" class="muted span">No subjects set for this class — add them from Academics first.</p>
+          <div v-for="s in classSubjects" :key="s.id" class="span owner-row">
+            <span class="owner-row__name">{{ s.label }}</span>
+            <span v-if="ownerOf(s.id)" class="chip chip--ok">{{ ownerOf(s.id) }}</span>
+          </div>
+        </template>
+        <template v-else>
         <div v-if="form.classId" class="span subj-head">
           <strong>Subjects</strong>
           <button class="link-btn" type="button" @click="addSubjectRow">+ Add subject</button>
@@ -53,28 +60,38 @@
           <div v-for="s in rows" :key="s.name" class="span subj-row">
             <input v-model="s.name" class="app-input__control" placeholder="Subject name" />
             <button class="link-btn link-btn--danger" type="button" @click="removeRow(s)">×</button>
-          <div v-if="form.category === 'cq'" class="span split-grid">
-            <label>CQ full<input v-model.number="s.cqFull" type="number" min="0" class="app-input__control" /></label>
-            <label>CQ pass<input v-model.number="s.cqPass" type="number" min="0" class="app-input__control" /></label>
+            <div class="span split-grid">
+              <label>Category
+                <select v-model="s.mode" class="app-input__control">
+                  <option value="cq">Only CQ</option>
+                  <option value="mcq">Only MCQ</option>
+                  <option value="both">CQ+MCQ</option>
+                </select>
+              </label>
+              <template v-if="s.mode === 'cq'">
+                <label>CQ full<input v-model.number="s.cqFull" type="number" min="0" class="app-input__control" /></label>
+                <label>CQ pass<input v-model.number="s.cqPass" type="number" min="0" class="app-input__control" /></label>
+              </template>
+              <template v-else-if="s.mode === 'mcq'">
+                <label>MCQ full<input v-model.number="s.mcqFull" type="number" min="0" class="app-input__control" /></label>
+                <label>MCQ pass<input v-model.number="s.mcqPass" type="number" min="0" class="app-input__control" /></label>
+              </template>
+              <template v-else>
+                <label>CQ full<input v-model.number="s.cqFull" type="number" min="0" class="app-input__control" /></label>
+                <label v-if="s.passRule === 'separate'">CQ pass<input v-model.number="s.cqPass" type="number" min="0" class="app-input__control" /></label>
+                <label>MCQ full<input v-model.number="s.mcqFull" type="number" min="0" class="app-input__control" /></label>
+                <label v-if="s.passRule === 'separate'">MCQ pass<input v-model.number="s.mcqPass" type="number" min="0" class="app-input__control" /></label>
+                <label v-if="s.passRule !== 'separate'">Total pass<input v-model.number="s.passMarks" type="number" min="0" class="app-input__control" /></label>
+                <label>Pass rule
+                  <select v-model="s.passRule" class="app-input__control">
+                    <option value="separate">Separate (CQ + MCQ pass separately)</option>
+                    <option value="combine">Combine (total decides pass)</option>
+                  </select>
+                </label>
+              </template>
+            </div>
           </div>
-          <div v-else-if="form.category === 'mcq'" class="span split-grid">
-            <label>MCQ full<input v-model.number="s.mcqFull" type="number" min="0" class="app-input__control" /></label>
-            <label>MCQ pass<input v-model.number="s.mcqPass" type="number" min="0" class="app-input__control" /></label>
-          </div>
-          <div v-else class="span split-grid">
-            <label>CQ full<input v-model.number="s.cqFull" type="number" min="0" class="app-input__control" /></label>
-            <label v-if="s.passRule === 'separate'">CQ pass<input v-model.number="s.cqPass" type="number" min="0" class="app-input__control" /></label>
-            <label>MCQ full<input v-model.number="s.mcqFull" type="number" min="0" class="app-input__control" /></label>
-            <label v-if="s.passRule === 'separate'">MCQ pass<input v-model.number="s.mcqPass" type="number" min="0" class="app-input__control" /></label>
-            <label v-if="s.passRule !== 'separate'">Total pass<input v-model.number="s.passMarks" type="number" min="0" class="app-input__control" /></label>
-            <label>Pass rule
-              <select v-model="s.passRule" class="app-input__control">
-                <option value="separate">Separate (CQ + MCQ pass separately)</option>
-                <option value="combine">Combine (total decides pass)</option>
-              </select>
-            </label>
-          </div>
-          </div>
+        </template>
         </template>
         <p v-if="formError" class="error span">{{ formError }}</p>
         <div class="form-actions">
@@ -91,8 +108,9 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
-import { useClasses, useCreateExam, useDepartments, useSections, useSubjects } from '@/composables/useQueries'
+import { useClasses, useClassSubjectTeachers, useCreateExam, useDepartments, useSections, useSubjects } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import type { ExamSubjectInput } from '@/types/models'
 
 interface SubjectRow {
@@ -101,6 +119,8 @@ interface SubjectRow {
   group: string
   fullMarks: number
   passMarks: number
+  /** Per-subject category — one exam can mix CQ-only, MCQ-only and CQ+MCQ subjects. */
+  mode: 'cq' | 'mcq' | 'both'
   cqFull: number
   cqPass: number
   mcqFull: number
@@ -110,10 +130,14 @@ interface SubjectRow {
 
 const router = useRouter()
 const toast = useToast()
+const school = useSchoolStore()
+/** Teacher-entry mode: admin makes the shell, each subject's teacher fills it. */
+const teacherMode = computed(() => school.teacherExamEntry)
 
 const today = (): string => new Date().toISOString().slice(0, 10)
 const blankSubject = (): SubjectRow => ({
   name: '', group: 'Additional', fullMarks: 100, passMarks: 33,
+  mode: 'both',
   cqFull: 70, cqPass: 23, mcqFull: 30, mcqPass: 10, passRule: 'separate',
 })
 const form = reactive({
@@ -123,38 +147,25 @@ const form = reactive({
   sectionId: null as string | null,
   departmentId: null as string | null,
   includeCommon: true,
-  category: 'both' as 'cq' | 'mcq' | 'both',
   subjects: [blankSubject()] as SubjectRow[],
 })
 function addSubjectRow(): void {
   form.subjects.push(blankSubject())
 }
-// Row Full is always the sum of the split inputs — the backend rejects a
-// hand-typed Full that disagrees with CQ+MCQ, so Full syncs whenever a split changes.
+// Row Full always follows the fields the row's own category uses — the backend
+// rejects a hand-typed Full that disagrees with CQ+MCQ, so Full syncs whenever
+// a part (or the category) changes.
 // This also keeps the Total line below dynamic with the inputs.
 watch(
-  () => form.subjects.map((s) => [s.cqFull, s.mcqFull]),
+  () => form.subjects.map((s) => [s.mode, s.cqFull, s.mcqFull]),
   () => {
     for (const s of form.subjects) {
-      if (form.category === 'both') s.fullMarks = (Number(s.cqFull) || 0) + (Number(s.mcqFull) || 0)
-      else if (form.category === 'cq') s.fullMarks = Number(s.cqFull) || 0
+      if (s.mode === 'both') s.fullMarks = (Number(s.cqFull) || 0) + (Number(s.mcqFull) || 0)
+      else if (s.mode === 'cq') s.fullMarks = Number(s.cqFull) || 0
       else s.fullMarks = Number(s.mcqFull) || 0
     }
   },
   { deep: true },
-)
-watch(
-  () => form.category,
-  (cat) => {
-    for (const s of form.subjects) {
-      if (cat === 'both') {
-        s.cqFull = s.cqFull || Math.round((Number(s.fullMarks) || 0) * 0.7)
-        s.mcqFull = s.mcqFull || (Number(s.fullMarks) || 0) - s.cqFull
-      }
-      else if (cat === 'cq') s.cqFull = s.cqFull || Number(s.fullMarks) || 0
-      else s.mcqFull = s.mcqFull || Number(s.fullMarks) || 0
-    }
-  },
 )
 
 const { data: classData } = useClasses()
@@ -196,17 +207,27 @@ function rowFromLabel(label: string, group: string): SubjectRow {
   const row = blankSubject()
   row.name = label
   row.group = group
-  if (form.category === 'cq') {
-    row.cqFull = 100
-    row.cqPass = 33
-  } else if (form.category === 'mcq') {
-    row.mcqFull = 100
-    row.mcqPass = 33
-  }
   return row
 }
-// Changing class auto-fills that class's subjects as rows, pre-split per the
-// exam category. No typing needed — add extras with + Add subject or drop with ×.
+// Teacher-entry preview: who owns each class subject right now. Match by the
+// subject row id (not the label) — a class can hold same-label rows in
+// different departments (e.g. Arts Science vs Commerce Science), each with
+// its own teacher, and only the row that will be created matters here.
+const { data: classTeacherData } = useClassSubjectTeachers(() => form.classId || undefined)
+const classTeacherRows = computed(() => classTeacherData.value?.data ?? [])
+const ownerBySubjectId = computed(() => {
+  const map = new Map<string, string>()
+  for (const r of classTeacherRows.value) {
+    if (r.subjectId && r.teacherName && !map.has(r.subjectId)) map.set(r.subjectId, r.teacherName)
+  }
+  return map
+})
+function ownerOf(subjectId: string): string {
+  return ownerBySubjectId.value.get(subjectId) ?? ''
+}
+// Changing class auto-fills that class's subjects as rows (default CQ+MCQ).
+// Per-row Category can be switched to Only CQ / Only MCQ as needed —
+// no typing needed, extras with + Add subject or drop with ×.
 watch(classSubjects, (list) => {
   if (!form.classId) {
     form.subjects = []
@@ -249,50 +270,59 @@ async function save(): Promise<void> {
     return
   }
   const subjects: ExamSubjectInput[] = []
-  for (const r of form.subjects) {
-    const name = r.name.trim()
-    if (!name) continue
-    const full = Number(r.fullMarks) || 0
-    const pass = Number(r.passMarks) || 0
-    if (form.category === 'cq') {      subjects.push({
-        name, fullMarks: full, passMarks: pass,
-        cqFull: full, cqPass: Math.min(Number(r.cqPass) || 0, full),
-        mcqFull: 0, mcqPass: 0, passRule: 'separate',
-      })
-    } else if (form.category === 'mcq') {
-      subjects.push({
-        name, fullMarks: full, passMarks: pass,
-        cqFull: 0, cqPass: 0,
-        mcqFull: full, mcqPass: Math.min(Number(r.mcqPass) || 0, full),
-        passRule: 'separate',
-      })
-    } else {
-      const combined = r.passRule !== 'separate'
-      subjects.push({
-        name, fullMarks: full, passMarks: pass,
-        cqFull: Number(r.cqFull) || 0,
-        cqPass: combined ? 0 : Number(r.cqPass) || 0,
-        mcqFull: Number(r.mcqFull) || 0,
-        mcqPass: combined ? 0 : Number(r.mcqPass) || 0,
-        passRule: r.passRule,
-      })
+  if (!teacherMode.value) {
+    for (const r of form.subjects) {
+      const name = r.name.trim()
+      if (!name) continue
+      const full = Number(r.fullMarks) || 0
+      const pass = Number(r.passMarks) || 0
+      if (r.mode === 'cq') {
+        subjects.push({
+          name, fullMarks: full, passMarks: pass,
+          cqFull: full, cqPass: Math.min(Number(r.cqPass) || 0, full),
+          mcqFull: 0, mcqPass: 0, passRule: 'separate',
+        })
+      } else if (r.mode === 'mcq') {
+        subjects.push({
+          name, fullMarks: full, passMarks: pass,
+          cqFull: 0, cqPass: 0,
+          mcqFull: full, mcqPass: Math.min(Number(r.mcqPass) || 0, full),
+          passRule: 'separate',
+        })
+      } else {
+        const combined = r.passRule !== 'separate'
+        subjects.push({
+          name, fullMarks: full, passMarks: pass,
+          cqFull: Number(r.cqFull) || 0,
+          cqPass: combined ? 0 : Number(r.cqPass) || 0,
+          mcqFull: Number(r.mcqFull) || 0,
+          mcqPass: combined ? 0 : Number(r.mcqPass) || 0,
+          passRule: r.passRule,
+        })
+      }
     }
-  }
-  if (!subjects.length) {
-    formError.value = 'Add at least one subject.'
-    return
+    if (!subjects.length) {
+      formError.value = 'Add at least one subject.'
+      return
+    }
   }
   saving.value = true
   try {
-    await createExam({
+    const base = {
       name: form.name.trim(),
       examDate: form.examDate,
       classId: form.classId,
       sectionId: form.sectionId,
       departmentId: form.departmentId,
-      subjects,
-    })
-    toast.success('Exam created')
+    }
+    if (teacherMode.value) {
+      // Shell only — the backend seeds the class's subjects as pending rows.
+      await createExam({ ...base, includeCommon: form.includeCommon })
+      toast.success('Exam created — teachers will fill their subjects')
+    } else {
+      await createExam({ ...base, subjects })
+      toast.success('Exam created')
+    }
     router.push('/admin/exams')
   } catch (e) {
     formError.value = e instanceof Error ? e.message : 'Save failed'
@@ -423,5 +453,32 @@ async function save(): Promise<void> {
 }
 .link-btn--danger {
   color: var(--color-danger);
+}
+.owner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+.owner-row__name {
+  font-weight: var(--font-weight-medium);
+}
+.chip {
+  flex: none;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+}
+.chip--ok {
+  background: color-mix(in srgb, var(--color-success, #16a34a) 15%, transparent);
+  color: var(--color-success, #16a34a);
+}
+.chip--warn {
+  background: color-mix(in srgb, var(--color-warning, #d97706) 15%, transparent);
+  color: var(--color-warning, #d97706);
 }
 </style>

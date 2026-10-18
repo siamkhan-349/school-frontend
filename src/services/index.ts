@@ -9,6 +9,7 @@ import type {
   Department,
   Exam,
   ExamStatus,
+  ExamSubject,
   ExamSubjectInput,
   FeeCatalogItem,
   FeeHead,
@@ -30,16 +31,23 @@ import type {
   SchoolEvent,
   SchoolSettings,
   Section,
+  SmsBalance,
   SmsLog,
   SmsTemplate,
   Student,
   StudentAttendance,
   StudentAttendanceSummary,
+  StudentBulkRecord,
+  StudentBulkResult,
   StudentInput,
+  StudentStatus,
   StudentSubjectMarks,
   Subject,
+  SubjectConfigInput,
   SubjectMarkInput,
   Teacher,
+  TeacherExam,
+  TeacherExamMarkInput,
   TeacherInput,
   TeacherSubject,
 } from '@/types/models'
@@ -78,6 +86,24 @@ export const studentService = {
   },
   removePhoto(id: string): Promise<ApiResponse<Student>> {
     return apiClient.delete<Student>(`/students/${id}/photo`)
+  },
+  /** Create/update many students from one import (upsert by class+roll). */
+  bulk(records: StudentBulkRecord[]): Promise<ApiResponse<StudentBulkResult>> {
+    return apiClient.post<StudentBulkResult>('/students/bulk', { records })
+  },
+  /** One status across many students (selected ids or a whole class/section). */
+  bulkStatus(input: {
+    status: StudentStatus
+    studentIds?: string[]
+    classId?: string
+    sectionId?: string
+  }): Promise<ApiResponse<{ updated: number; unchanged: number; status: string }>> {
+    return apiClient.post('/students/bulk-status', {
+      status: input.status,
+      studentIds: input.studentIds,
+      unitId: input.classId,
+      batchId: input.sectionId,
+    })
   },
 }
 
@@ -133,6 +159,10 @@ export const teacherSubjectService = {
       params: { classId },
     })
   },
+  /** Every assignment (subject → teacher picker labels). */
+  listAll(): Promise<ApiResponse<TeacherSubject[]>> {
+    return apiClient.get<TeacherSubject[]>('/teacher-subjects')
+  },
   assign(teacherId: string, subjectId: string): Promise<ApiResponse<TeacherSubject>> {
     return apiClient.post<TeacherSubject>('/teacher-subjects', {
       teacherId,
@@ -161,14 +191,17 @@ export const academicService = {
   classes(): Promise<ApiResponse<SchoolClass[]>> {
     return apiClient.get<SchoolClass[]>('/meta/classes')
   },
-  createClass(label: string, hasDepartments = false): Promise<ApiResponse<SchoolClass>> {
-    return apiClient.post<SchoolClass>('/meta/classes', { label, hasDepartments })
+  createClass(input: { label: string; hasDepartments?: boolean; sortOrder?: number; sections?: string[]; departments?: string[]; startTime?: string; endTime?: string }): Promise<ApiResponse<SchoolClass>> {
+    return apiClient.post<SchoolClass>('/meta/classes', input)
   },
   deleteClass(id: string): Promise<ApiResponse<null>> {
     return apiClient.delete<null>(`/meta/classes/${id}`)
   },
-  updateClass(id: string, input: { label?: string; hasDepartments?: boolean }): Promise<ApiResponse<SchoolClass>> {
+  updateClass(id: string, input: { label?: string; hasDepartments?: boolean; sortOrder?: number; startTime?: string; endTime?: string }): Promise<ApiResponse<SchoolClass>> {
     return apiClient.put<SchoolClass>(`/meta/classes/${id}`, input)
+  },
+  reorderClasses(ids: string[]): Promise<ApiResponse<SchoolClass[]>> {
+    return apiClient.post<SchoolClass[]>('/meta/classes/reorder', { ids })
   },
   departments(classId?: string): Promise<ApiResponse<Department[]>> {
     return apiClient.get<Department[]>('/meta/departments', { params: { classId } })
@@ -184,20 +217,6 @@ export const academicService = {
   },
   createSection(classId: string, label: string): Promise<ApiResponse<Section>> {
     return apiClient.post<Section>('/meta/sections', { classId, label })
-  },
-  /**
-   * Static section labels (A/B/C/D) need no management screen: find the
-   * class's row for the label, auto-creating it on first use. Attendance and
-   * routines still get their per-class section rows — the admin just never has
-   * to create them by hand.
-   */
-  async ensureSection(classId: string, label: string): Promise<Section> {
-    const clean = label.trim()
-    const list = await apiClient.get<Section[]>('/meta/sections', { params: { classId } })
-    const found = list.data.find((s) => s.label.trim().toLowerCase() === clean.toLowerCase())
-    if (found) return found
-    const created = await apiClient.post<Section>('/meta/sections', { classId, label: clean })
-    return created.data
   },
   deleteSection(id: string): Promise<ApiResponse<null>> {
     return apiClient.delete<null>(`/meta/sections/${id}`)
@@ -243,7 +262,9 @@ export const examService = {
   create(input: {
     name: string; examDate: string; classId: string; sectionId: string | null;
     departmentId?: string | null;
-    subjects: ExamSubjectInput[]
+    /** Omit in teacher-entry mode: the backend seeds the class's subjects. */
+    subjects?: ExamSubjectInput[]
+    includeCommon?: boolean
   }): Promise<ApiResponse<Exam>> {
     return apiClient.post<Exam>('/results', input)
   },
@@ -254,6 +275,10 @@ export const examService = {
   },
   setStatus(id: string, status: ExamStatus): Promise<ApiResponse<Exam>> {
     return apiClient.patch<Exam>(`/results/${id}`, { status })
+  },
+  /** Admin fallback: fill/replace one subject row in place (pre-publish). */
+  patchSubject(id: string, subjectId: string, input: SubjectConfigInput): Promise<ApiResponse<ExamSubject>> {
+    return apiClient.patch<ExamSubject>(`/results/${id}/subjects/${subjectId}`, input)
   },
   remove(id: string): Promise<ApiResponse<null>> {
     return apiClient.delete<null>(`/results/${id}`)
@@ -269,6 +294,26 @@ export const examService = {
   },
   results(examId: string): Promise<ApiResponse<ExamResults>> {
     return apiClient.get<ExamResults>(`/results/${examId}/results`)
+  },
+}
+
+/** Teacher panel (teacher-entry mode only): own subjects + marks. */
+export const teacherExamService = {
+  list(): Promise<ApiResponse<TeacherExam[]>> {
+    return apiClient.get<TeacherExam[]>('/teacher-exams')
+  },
+  get(id: string): Promise<ApiResponse<TeacherExam>> {
+    return apiClient.get<TeacherExam>(`/teacher-exams/${id}`)
+  },
+  saveSubject(examId: string, subjectId: string, input: SubjectConfigInput): Promise<ApiResponse<ExamSubject>> {
+    return apiClient.patch<ExamSubject>(`/teacher-exams/${examId}/subjects/${subjectId}`, input)
+  },
+  saveMarks(
+    examId: string,
+    subjectId: string,
+    marks: TeacherExamMarkInput[],
+  ): Promise<ApiResponse<{ saved: number }>> {
+    return apiClient.post<{ saved: number }>(`/teacher-exams/${examId}/marks`, { subjectId, marks })
   },
 }
 
@@ -628,7 +673,7 @@ export const smsService = {
     return apiClient.get<SmsBalance>('/sms/balance')
   },
   logs(params?: { status?: string; search?: string }): Promise<ApiResponse<SmsLog[]>> {
-    return apiClient.get<SmsLog[]>('/sms/messages', params)
+    return apiClient.get<SmsLog[]>('/sms/messages', { params })
   },
 }
 

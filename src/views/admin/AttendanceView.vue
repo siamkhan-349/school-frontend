@@ -34,7 +34,7 @@
         </div>
         <p v-if="tapMsg" class="tap-ok">{{ tapMsg }}</p>
         <p v-if="tapError" class="error">{{ tapError }}</p>
-        <p class="muted">1st tap = entry (late if after school start). Exit opens at school end time — reads before that only confirm the entry. Today only.</p>
+        <p class="muted">1st tap = entry (late if after class/school start time). Exit opens at end time — reads before that only confirm the entry. Today only.</p>
       </AppCard>
 
       <AppCard v-if="step === 'select'" title="Daily attendance">

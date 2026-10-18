@@ -57,7 +57,10 @@ const { toasts } = useToast()
 
 const visibleNav = computed(() =>
   TEACHER_NAV_ITEMS.filter(
-    (item) => auth.can(item.permission) && satisfiesModuleGate(item.module, (k) => school.hasModule(k)),
+    (item) =>
+      auth.can(item.permission) &&
+      (!item.examEntry || school.teacherExamAccess) &&
+      satisfiesModuleGate(item.module, (k) => school.hasModule(k)),
   ),
 )
 

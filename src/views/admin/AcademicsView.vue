@@ -11,7 +11,7 @@
         </div>
         <ul class="list">
           <li v-for="s in sessions" :key="s.id" class="list__row">
-            <span>{{ s.label }} <em v-if="s.isActive" class="badge">active</em></span>
+            <span>{{ s.label }}</span>
             <span class="row-btns">
               <button class="link-btn" type="button" @click="openSessionEdit(s)">Edit</button>
               <button class="link-btn link-btn--danger" type="button" @click="askDeleteSession(s.id, s.label)">Remove</button>
@@ -32,41 +32,48 @@
     <AppCard>
       <div class="card-head">
         <h3 class="card-head__title">Classes</h3>
-        <AppButton @click="showAddModal = true">+ Add Class</AppButton>
+        <AppButton @click="goAddClass">+ Add Class</AppButton>
       </div>
       <p v-if="!allClasses.length" class="muted">No classes yet — use + Add Class to create the first one.</p>
-      <table v-else class="table">
-        <thead>
-          <tr><th>Class</th><th>Subjects</th><th>Sections</th><th>Departments</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="c in allClasses" :key="c.id" class="table__row" @click="openClass(c.id)">
-            <td><strong>{{ c.label }}</strong> <em v-if="c.hasDepartments" class="badge">dept</em></td>
-            <td>{{ subjectCount(c.id) }}</td>
-            <td>{{ sectionCount(c.id) }}</td>
-            <td>{{ c.hasDepartments ? deptCount(c.id) : '—' }}</td>
-            <td class="row-actions"><button class="link-btn" type="button" @click.stop="openClass(c.id)">Manage →</button></td>
-          </tr>
-        </tbody>
-      </table>
+      <template v-else>
+        <p class="drag-hint muted">Drag a row to reorder the ladder — drop it on the bottom strip to send it last.</p>
+        <table class="table">
+          <thead>
+            <tr><th>Order</th><th>Class</th><th>Subjects</th><th>Sections</th><th>Departments</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="(c, i) in allClasses"
+              :key="c.id"
+              class="table__row"
+              draggable="true"
+              :class="{ 'is-dragging': dragId === c.id, 'is-drop-target': dragOverIndex === i }"
+              @click="openClass(c.id)"
+              @dragstart="onDragStart(c, $event)"
+              @dragover.prevent="onDragOver(i)"
+              @drop.prevent="onDrop(i)"
+              @dragend="onDragEnd"
+            >
+              <td class="muted">{{ c.sortOrder }}</td>
+              <td><strong>{{ c.label }}</strong> <em v-if="c.hasDepartments" class="badge">dept</em></td>
+              <td>{{ subjectCount(c.id) }}</td>
+              <td class="muted">{{ sectionNames(c.id) }}</td>
+              <td class="muted">{{ c.hasDepartments ? deptNames(c.id) : '—' }}</td>
+              <td class="row-actions"><button class="link-btn" type="button" @click.stop="openClass(c.id)">Manage →</button></td>
+            </tr>
+            <tr
+              v-if="dragId"
+              class="table__drop-end"
+              :class="{ 'is-drop-target': dragOverEnd }"
+              @dragover.prevent="onDragOverEnd"
+              @drop.prevent="onDropEnd"
+            >
+              <td colspan="6">Drop here to send the class to the bottom</td>
+            </tr>
+          </tbody>
+        </table>
+      </template>
     </AppCard>
-
-    <!-- Add class modal -->
-    <Teleport to="body">
-      <div v-if="showAddModal" class="modal-backdrop" @click.self="showAddModal = false">
-        <div class="modal">
-          <h3 class="modal__title">Add Class</h3>
-          <form class="modal__form" @submit.prevent="addClass">
-            <label>Class name<input v-model="classLabel" class="app-input__control" placeholder="e.g. Class 8" required /></label>
-            <label class="check" title="Class 9/10 split into Science, Arts, Commerce…"><input v-model="classHasDepts" type="checkbox" /> This class has departments</label>
-            <div class="form-actions">
-              <AppButton variant="ghost" type="button" @click="showAddModal = false">Cancel</AppButton>
-              <AppButton type="submit" :disabled="creatingClass">{{ creatingClass ? 'Adding…' : 'Add' }}</AppButton>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
 
     <!-- Add / edit session modal -->
     <Teleport to="body">
@@ -104,17 +111,17 @@ import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import {
   useClasses,
-  useCreateClass,
   useCreateSession,
   useDeleteSession,
   useDepartments,
+  useReorderClasses,
   useSections,
   useSessions,
   useSubjects,
   useUpdateSession,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
-import type { AcademicSession } from '@/types/models'
+import type { AcademicSession, SchoolClass } from '@/types/models'
 
 const toast = useToast()
 const router = useRouter()
@@ -125,24 +132,28 @@ const { data: subjectData } = useSubjects(undefined)
 const { data: allDeptData } = useDepartments(undefined)
 
 const sessions = computed(() => sessionData.value?.data ?? [])
-// Natural sort so "Class 10" comes after "Class 9", not after "Class 1".
+// Ladder order first (PG=1 … Class 10), numeric label tiebreak so
+// "Class 10" comes after "Class 9", not after "Class 1".
 const allClasses = computed(() =>
   [...(classData.value?.data ?? [])].sort((a, b) =>
-    a.label.localeCompare(b.label, undefined, { numeric: true }),
+    a.sortOrder - b.sortOrder
+    || a.label.localeCompare(b.label, undefined, { numeric: true }),
   ),
 )
 const allSections = computed(() => allSectionData.value?.data ?? [])
 const allSubjects = computed(() => subjectData.value?.data ?? [])
 const allDepartments = computed(() => allDeptData.value?.data ?? [])
 
-function sectionCount(classId: string): number {
-  return allSections.value.filter((s) => s.classId === classId).length
+function sectionNames(classId: string): string {
+  const labels = allSections.value.filter((s) => s.classId === classId).map((s) => s.label)
+  return labels.length ? labels.join(', ') : '—'
 }
 function subjectCount(classId: string): number {
   return allSubjects.value.filter((s) => s.classId === classId).length
 }
-function deptCount(classId: string): number {
-  return allDepartments.value.filter((d) => d.classId === classId).length
+function deptNames(classId: string): string {
+  const labels = allDepartments.value.filter((d) => d.classId === classId).map((d) => d.label)
+  return labels.length ? labels.join(', ') : '—'
 }
 function openClass(id: string): void {
   router.push(`/admin/academics/${id}`)
@@ -151,19 +162,81 @@ function openClass(id: string): void {
 const sessionLabel = ref('')
 const sessionStart = ref('')
 const sessionEnd = ref('')
-const classLabel = ref('')
-const classHasDepts = ref(false)
-const showAddModal = ref(false)
 const showSessionModal = ref(false)
 const editingSessionId = ref('')
 
 const { mutateAsync: createSession } = useCreateSession()
 const { mutateAsync: updateSession } = useUpdateSession()
 const { mutateAsync: deleteSession } = useDeleteSession()
-const { mutateAsync: createClass, isPending: creatingClass } = useCreateClass()
+const { mutateAsync: reorderClasses } = useReorderClasses()
+
+const dragId = ref('')
+const dragOverIndex = ref<number | null>(null)
+const dragOverEnd = ref(false)
+const reordering = ref(false)
+
+function onDragStart(c: SchoolClass, e: DragEvent): void {
+  dragId.value = c.id
+  e.dataTransfer?.setData('text/plain', c.id)
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+}
+
+function onDragOver(i: number): void {
+  dragOverIndex.value = i
+  dragOverEnd.value = false
+}
+
+function onDragOverEnd(): void {
+  dragOverEnd.value = true
+  dragOverIndex.value = null
+}
+
+function onDragEnd(): void {
+  dragId.value = ''
+  dragOverIndex.value = null
+  dragOverEnd.value = false
+}
+
+async function submitOrder(ids: string[]): Promise<void> {
+  if (reordering.value) return
+  reordering.value = true
+  try {
+    await reorderClasses(ids)
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Reorder failed')
+  } finally {
+    reordering.value = false
+  }
+}
+
+function onDrop(i: number): void {
+  const from = allClasses.value.findIndex((c) => c.id === dragId.value)
+  onDragEnd()
+  if (from === -1 || from === i || reordering.value) return
+  const list = [...allClasses.value]
+  const moved = list.splice(from, 1)[0]
+  if (!moved) return
+  list.splice(from < i ? i - 1 : i, 0, moved)
+  void submitOrder(list.map((c) => c.id))
+}
+
+function onDropEnd(): void {
+  const from = allClasses.value.findIndex((c) => c.id === dragId.value)
+  onDragEnd()
+  if (from === -1 || from === allClasses.value.length - 1 || reordering.value) return
+  const list = [...allClasses.value]
+  const moved = list.splice(from, 1)[0]
+  if (!moved) return
+  list.push(moved)
+  void submitOrder(list.map((c) => c.id))
+}
 
 function goFees(): void {
   router.push('/admin/fees')
+}
+
+function goAddClass(): void {
+  router.push('/admin/academics/new')
 }
 
 const savingSession = ref(false)
@@ -231,18 +304,6 @@ async function doDeleteSession(): Promise<void> {
     toast.error(e instanceof Error ? e.message : 'Failed')
   } finally {
     confirmBusy.value = false
-  }
-}
-
-async function addClass(): Promise<void> {
-  try {
-    await createClass({ label: classLabel.value.trim(), hasDepartments: classHasDepts.value })
-    classLabel.value = ''
-    classHasDepts.value = false
-    showAddModal.value = false
-    toast.success('Class created — open it to add subjects')
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Failed')
   }
 }
 </script>
@@ -376,6 +437,31 @@ async function addClass(): Promise<void> {
 }
 .row-actions {
   text-align: right;
+}
+.drag-hint {
+  font-size: var(--font-size-sm);
+  margin: 0 0 8px;
+}
+.table__row[draggable='true'] {
+  cursor: grab;
+}
+.table__row.is-dragging {
+  opacity: 0.4;
+}
+.table__row.is-drop-target {
+  box-shadow: inset 0 2px 0 var(--color-primary);
+}
+.table__drop-end td {
+  padding: 6px 12px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  text-align: center;
+}
+.table__drop-end.is-drop-target td {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 .link-btn {
   background: none;

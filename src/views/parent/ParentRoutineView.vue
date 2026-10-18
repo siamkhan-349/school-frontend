@@ -42,6 +42,7 @@ const child = computed(() => children.value.find((c) => c.id === childId.value))
 const { data, isLoading: routinesLoading } = useRoutines(
   () => child.value?.classId,
   () => (child.value?.sectionId ?? null) as string | null | undefined,
+  'class',
 )
 const routines = computed(() => {
   const rows = data.value?.data ?? []

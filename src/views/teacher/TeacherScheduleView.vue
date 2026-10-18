@@ -37,7 +37,7 @@ const { data: meData, isLoading: meLoading } = useMyTeacher()
 const teacher = computed(() => meData.value?.data)
 const teacherId = computed(() => teacher.value?.id ?? '')
 
-const { data: routineData } = useRoutines()
+const { data: routineData } = useRoutines(undefined, undefined, 'class')
 const myRoutines = computed(() =>
   (routineData.value?.data ?? [])
     .filter((r) => r.status === 'active' && teacherId.value && (r.teacherIds ?? []).includes(teacherId.value))

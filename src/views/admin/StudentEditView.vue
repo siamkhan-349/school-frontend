@@ -71,8 +71,9 @@
             <span v-if="errors.classId" class="field-error">{{ errors.classId }}</span>
           </label>
           <label>Section
-            <select v-model="form.sectionLabel" class="app-input__control">
-              <option v-for="opt in SECTION_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+            <select v-model="form.sectionId" class="app-input__control">
+              <option value="">No section</option>
+              <option v-for="s in editSections" :key="s.id" :value="s.id">{{ s.label }}</option>
             </select>
           </label>
           <label v-if="editClass?.hasDepartments">Department
@@ -83,7 +84,7 @@
           </label>
           <label>Status
             <select v-model="form.status" class="app-input__control">
-              <option value="active">active</option><option value="inactive">inactive</option>
+              <option v-for="o in STUDENT_STATUS_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select>
           </label>
           <label>Total (৳)
@@ -126,7 +127,6 @@ import AppCard from '@/components/common/AppCard.vue'
 import {
   useClasses,
   useDepartments,
-  useEnsureSection,
   useSections,
   useStudent,
   useSubjects,
@@ -134,7 +134,8 @@ import {
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { studentService } from '@/services'
-import { SECTION_OPTIONS } from '@/types/models'
+import { STUDENT_STATUS_OPTIONS } from '@/utils/studentStatus'
+import type { StudentStatus } from '@/types/models'
 
 const route = useRoute()
 const router = useRouter()
@@ -161,11 +162,11 @@ const form = reactive({
   dateOfBirth: '',
   instituteName: '',
   classId: '',
-  sectionLabel: SECTION_OPTIONS[0] ?? 'A',
+  sectionId: '',
   departmentId: null as string | null,
   selectedSubjects: [] as string[],
   totalAmount: 0,
-  status: 'active' as 'active' | 'inactive',
+  status: 'active' as StudentStatus,
 })
 
 const filled = ref(false)
@@ -184,10 +185,11 @@ watch(student, (s) => {
   form.dateOfBirth = s.dateOfBirth ?? ''
   form.instituteName = s.instituteName ?? ''
   form.classId = s.classId ?? ''
+  form.sectionId = s.sectionId ?? ''
   form.departmentId = s.departmentId ?? null
   form.selectedSubjects = Object.keys(s.subjects ?? {})
   form.totalAmount = Number(s.totalAmount) || 0
-  form.status = s.status === 'inactive' ? 'inactive' : 'active'
+  form.status = (s.status || 'active') as StudentStatus
 })
 
 const editClass = computed(() => classes.value.find((c) => c.id === form.classId))
@@ -222,10 +224,11 @@ watch(visibleEditLabels, (labels) => {
   }
 })
 const { data: editSectionData } = useSections(() => form.classId || undefined)
-watch(editSectionData, (res) => {
+const editSections = computed(() => editSectionData.value?.data ?? [])
+watch(editSections, (list) => {
   if (!filled.value) return
-  const current = (res?.data ?? []).find((s) => s.id === student.value?.sectionId)
-  if (current) form.sectionLabel = current.label
+  const current = form.sectionId
+  if (current && !list.some((s) => s.id === current)) form.sectionId = list[0]?.id ?? ''
 }, { immediate: true })
 
 const errors = reactive<Record<string, string>>({})
@@ -241,7 +244,6 @@ function validate(): boolean {
 const formError = ref('')
 const saving = ref(false)
 const { mutateAsync: updateStudent } = useUpdateStudent()
-const { mutateAsync: ensureSection } = useEnsureSection()
 
 // Photo uploads immediately (the student already exists).
 const photoPreview = ref('')
@@ -301,7 +303,6 @@ async function save(): Promise<void> {
   if (!validate()) return
   saving.value = true
   try {
-    const section = await ensureSection({ classId: form.classId, label: form.sectionLabel })
     await updateStudent({
       id: id.value,
       input: {
@@ -312,9 +313,9 @@ async function save(): Promise<void> {
         address: form.address.trim(),
         roll: form.roll.trim(),
         classId: form.classId,
-        sectionId: section.id,
+        sectionId: form.sectionId || null,
         departmentId: form.departmentId,
-        subjects: [...form.selectedSubjects.filter((l) => new Set(visibleEditLabels.value).has(l))],
+        subjects: form.selectedSubjects.filter((l) => new Set(visibleEditLabels.value).has(l)),
         guardianName: form.guardianName.trim(),
         guardianPhone: form.guardianPhone.trim(),
         guardianPhone2: form.guardianPhone2.trim(),

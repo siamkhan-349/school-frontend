@@ -26,7 +26,7 @@
             <div><dt>Address</dt><dd>{{ student.address || '—' }}</dd></div>
             <div><dt>Date of birth</dt><dd>{{ student.dateOfBirth || '—' }}</dd></div>
             <div><dt>Previous institute</dt><dd>{{ student.instituteName || '—' }}</dd></div>
-            <div><dt>Status</dt><dd>{{ student.status }}</dd></div>
+            <div><dt>Status</dt><dd>{{ studentStatusLabel(student.status) }}</dd></div>
           </dl>
         </AppCard>
         <AppCard title="Guardian">
@@ -85,6 +85,7 @@ import AppCard from '@/components/common/AppCard.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
 import { useClasses, useDepartments, useStudent, useStudentPayments } from '@/composables/useQueries'
 import { receiptTypeLabel, receiptTypeTitle } from '@/utils/paymentLabels'
+import { studentStatusLabel } from '@/utils/studentStatus'
 import type { Payment } from '@/types/models'
 
 const route = useRoute()

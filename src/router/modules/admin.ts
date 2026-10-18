@@ -1,6 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router'
 import AdminLayout from '@/layouts/AdminLayout.vue'
 import AcademicsView from '@/views/admin/AcademicsView.vue'
+import ClassCreateView from '@/views/admin/ClassCreateView.vue'
 import ClassDetailView from '@/views/admin/ClassDetailView.vue'
 import AttendanceView from '@/views/admin/AttendanceView.vue'
 import AttendanceDayView from '@/views/admin/AttendanceDayView.vue'
@@ -35,6 +36,7 @@ import StudentAdmitView from '@/views/admin/StudentAdmitView.vue'
 import StudentCardsView from '@/views/admin/StudentCardsView.vue'
 import StudentDetailView from '@/views/admin/StudentDetailView.vue'
 import StudentEditView from '@/views/admin/StudentEditView.vue'
+import StudentImportView from '@/views/admin/StudentImportView.vue'
 import StudentsView from '@/views/admin/StudentsView.vue'
 import TeachersView from '@/views/admin/TeachersView.vue'
 import TeacherCreateView from '@/views/admin/TeacherCreateView.vue'
@@ -51,10 +53,12 @@ export const adminRoutes: RouteRecordRaw[] = [
       { path: '', redirect: '/admin/dashboard' },
       { path: 'dashboard', component: DashboardView, meta: { requiresAuth: true, permission: 'admin.dashboard.view' } },
       { path: 'academics', component: AcademicsView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'academics' } },
+      { path: 'academics/new', component: ClassCreateView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'academics' } },
       { path: 'academics/:classId', component: ClassDetailView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'academics' } },
       { path: 'students', component: StudentsView, meta: { requiresAuth: true, permission: 'admin.students.view', module: 'students' } },
       { path: 'students/new', component: StudentAdmitView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'students' } },
       { path: 'students/cards', component: StudentCardsView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'students' } },
+      { path: 'students/import', component: StudentImportView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'students' } },
       { path: 'students/:id/edit', component: StudentEditView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'students' } },
       { path: 'students/:id', component: StudentDetailView, meta: { requiresAuth: true, permission: 'admin.students.view', module: 'students' } },
       { path: 'teachers', component: TeachersView, meta: { requiresAuth: true, permission: 'admin.teachers.view' } },

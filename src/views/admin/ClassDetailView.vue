@@ -6,14 +6,42 @@
     <template v-else>
       <div class="hero">
         <div>
-          <h1 class="page__title">{{ schoolClass.label }}</h1>
+          <div class="title-row">
+            <h1 v-if="!editingName" class="page__title">{{ schoolClass.label }}</h1>
+            <span v-else class="title-edit">
+              <input
+                v-model="nameInput"
+                class="app-input__control"
+                placeholder="Class name"
+                @keyup.enter="saveName"
+                @keyup.esc="cancelName"
+              />
+              <AppButton type="button" :disabled="savingName" @click="saveName">{{ savingName ? 'Saving…' : 'Save' }}</AppButton>
+              <AppButton variant="ghost" type="button" @click="cancelName">Cancel</AppButton>
+            </span>
+            <button v-if="!editingName" class="name-edit-btn" type="button" title="Edit class name" @click="startNameEdit">✎</button>
+          </div>
           <p class="muted">
             {{ departments.length }} department{{ departments.length === 1 ? '' : 's' }} ·
             {{ subjects.length }} subject{{ subjects.length === 1 ? '' : 's' }} ·
             {{ sections.length }} section{{ sections.length === 1 ? '' : 's' }}
           </p>
         </div>
-        <em v-if="schoolClass.hasDepartments" class="badge">departments on</em>
+        <div class="hero-side">
+          <label class="order-field" title="Ladder position — PG=1, Nursery=2, KG=3, Class 1=4 …">
+            Order
+            <input v-model.number="orderInput" type="number" min="0" class="app-input__control" @change="saveOrder" />
+          </label>
+          <label class="order-field" title="Class hours — late cutoff for this class's attendance taps and limit for its class routine periods. Blank = school-wide timings.">
+            Hours
+            <span class="hours-inputs">
+              <input v-model="hoursStart" type="time" class="app-input__control" @change="saveHours" />
+              <span class="muted">–</span>
+              <input v-model="hoursEnd" type="time" class="app-input__control" @change="saveHours" />
+            </span>
+          </label>
+          <em v-if="schoolClass.hasDepartments" class="badge">departments on</em>
+        </div>
       </div>
 
       <div class="grid">
@@ -76,10 +104,17 @@
       </div>
 
       <AppCard title="Sections">
-        <div class="chips">
-          <span v-for="s in sections" :key="s.id" class="chip">{{ s.label }}</span>
-          <span v-if="!sections.length" class="muted">None yet — sections A/B/C/D auto-create on first admit.</span>
-        </div>
+        <ul class="list">
+          <li v-for="s in sections" :key="s.id" class="list__row">
+            <span>{{ s.label }}</span>
+            <button class="link-danger" type="button" @click="askDeleteSection(s.id, s.label)">Remove</button>
+          </li>
+        </ul>
+        <p v-if="!sections.length" class="muted">No sections yet — add the ones this class runs (e.g. A, B).</p>
+        <form class="inline-form" @submit.prevent="addSection">
+          <input v-model="sectionLabel" class="app-input__control" placeholder="Section name (e.g. Rose or 1st Shift)" required />
+          <AppButton type="submit" :disabled="creatingSection">Add</AppButton>
+        </form>
       </AppCard>
 
       <div class="danger-zone">
@@ -98,7 +133,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
@@ -106,9 +141,11 @@ import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import {
   useClasses,
   useCreateDepartment,
+  useCreateSection,
   useCreateSubject,
   useDeleteClass,
   useDeleteDepartment,
+  useDeleteSection,
   useDeleteSubject,
   useDepartments,
   useSections,
@@ -163,6 +200,52 @@ const departmentLabel = ref('')
 const subjectLabel = ref('')
 /** Where the new subject goes: 'common' (whole class) or a department id. */
 const subjectTarget = ref('common')
+const sectionLabel = ref('')
+const orderInput = ref<number | string>('')
+watch(schoolClass, (c) => { orderInput.value = c?.sortOrder ?? 0 }, { immediate: true })
+
+const hoursStart = ref('')
+const hoursEnd = ref('')
+watch(schoolClass, (c) => {
+  hoursStart.value = c?.startTime ?? ''
+  hoursEnd.value = c?.endTime ?? ''
+}, { immediate: true })
+
+const editingName = ref(false)
+const nameInput = ref('')
+const savingName = ref(false)
+
+function startNameEdit(): void {
+  nameInput.value = schoolClass.value?.label ?? ''
+  editingName.value = true
+}
+
+function cancelName(): void {
+  editingName.value = false
+}
+
+async function saveName(): Promise<void> {
+  const label = nameInput.value.trim()
+  const current = schoolClass.value?.label ?? ''
+  if (!label) {
+    toast.error('Class name is required.')
+    return
+  }
+  if (label === current) {
+    editingName.value = false
+    return
+  }
+  savingName.value = true
+  try {
+    await updateClass({ id: classId.value, input: { label } })
+    toast.success('Class name updated')
+    editingName.value = false
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed')
+  } finally {
+    savingName.value = false
+  }
+}
 
 const { mutateAsync: updateClass } = useUpdateClass()
 const { mutateAsync: deleteClass } = useDeleteClass()
@@ -170,6 +253,59 @@ const { mutateAsync: createDepartment, isPending: creatingDepartment } = useCrea
 const { mutateAsync: deleteDepartment } = useDeleteDepartment()
 const { mutateAsync: createSubject, isPending: creatingSubject } = useCreateSubject()
 const { mutateAsync: deleteSubject } = useDeleteSubject()
+const { mutateAsync: createSection, isPending: creatingSection } = useCreateSection()
+const { mutateAsync: deleteSection } = useDeleteSection()
+
+async function saveOrder(): Promise<void> {
+  const current = schoolClass.value?.sortOrder ?? 0
+  if (orderInput.value === '' || orderInput.value === null) {
+    orderInput.value = current
+    return
+  }
+  const value = Number(orderInput.value)
+  if (!Number.isInteger(value) || value < 0) {
+    toast.error('Order must be a whole number (0 or more).')
+    orderInput.value = current
+    return
+  }
+  if (value === current) return
+  try {
+    await updateClass({ id: classId.value, input: { sortOrder: value } })
+    toast.success('Order updated')
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed')
+    orderInput.value = current
+  }
+}
+
+async function saveHours(): Promise<void> {
+  const c = schoolClass.value
+  if (!c) return
+  if (hoursStart.value && hoursEnd.value && hoursEnd.value <= hoursStart.value) {
+    toast.error('End time must be after start time.')
+    hoursEnd.value = c.endTime
+    return
+  }
+  if (hoursStart.value === c.startTime && hoursEnd.value === c.endTime) return
+  try {
+    await updateClass({ id: classId.value, input: { startTime: hoursStart.value, endTime: hoursEnd.value } })
+    toast.success('Class hours updated')
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed')
+    hoursStart.value = c.startTime
+    hoursEnd.value = c.endTime
+  }
+}
+
+async function addSection(): Promise<void> {
+  try {
+    await createSection({ classId: classId.value, label: sectionLabel.value.trim() })
+    sectionLabel.value = ''
+    toast.success('Section created')
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed')
+  }
+}
 
 const deptToggle = computed({
   get: () => schoolClass.value?.hasDepartments ?? false,
@@ -274,11 +410,20 @@ async function copySubjects(): Promise<void> {
   }
 }
 
-const confirm = ref({ open: false, kind: '' as 'department' | 'class' | '', id: '', message: '' })
+const confirm = ref({ open: false, kind: '' as 'department' | 'class' | 'section' | '', id: '', message: '' })
 const confirmBusy = ref(false)
 
 function askDeleteDepartment(id: string, label: string): void {
   confirm.value = { open: true, kind: 'department', id, message: `Delete department "${label}"?` }
+}
+
+function askDeleteSection(id: string, label: string): void {
+  confirm.value = {
+    open: true,
+    kind: 'section',
+    id,
+    message: `Remove section "${label}"? Sections holding students cannot be removed.`,
+  }
 }
 
 function askDeleteClass(): void {
@@ -299,6 +444,10 @@ async function doDelete(): Promise<void> {
       toast.success('Class removed')
       confirm.value.open = false
       await router.push('/admin/academics')
+    } else if (confirm.value.kind === 'section') {
+      await deleteSection(confirm.value.id)
+      toast.success('Section removed')
+      confirm.value.open = false
     } else {
       await deleteDepartment(confirm.value.id)
       toast.success('Removed')
@@ -325,9 +474,58 @@ async function doDelete(): Promise<void> {
   gap: var(--spacing-md);
   margin: var(--spacing-sm) 0 var(--spacing-lg);
 }
+.hero-side {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+.order-field {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+.order-field .app-input__control {
+  width: 72px;
+}
+.hours-inputs {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+.hours-inputs .app-input__control {
+  width: 104px;
+}
 .page__title {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
+}
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+.title-edit {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+.title-edit .app-input__control {
+  width: 220px;
+}
+.name-edit-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.name-edit-btn:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 .muted {
   color: var(--color-text-muted);
@@ -405,18 +603,5 @@ async function doDelete(): Promise<void> {
   margin-top: var(--spacing-lg);
   display: flex;
   justify-content: flex-end;
-}
-.chips {
-  display: flex;
-  gap: var(--spacing-xs);
-  flex-wrap: wrap;
-  align-items: center;
-}
-.chip {
-  font-style: normal;
-  font-size: var(--font-size-sm);
-  background: var(--color-surface-alt);
-  border-radius: var(--radius-full);
-  padding: 2px var(--spacing-md);
 }
 </style>

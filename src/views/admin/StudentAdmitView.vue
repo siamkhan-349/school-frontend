@@ -88,8 +88,9 @@
             <span v-if="errors.classId" class="field-error">{{ errors.classId }}</span>
           </label>
           <label>Section
-            <select v-model="form.sectionLabel" class="app-input__control">
-              <option v-for="opt in SECTION_OPTIONS" :key="opt" :value="opt">{{ opt }}</option>
+            <select v-model="form.sectionId" class="app-input__control">
+              <option value="">No section</option>
+              <option v-for="s in admitSections" :key="s.id" :value="s.id">{{ s.label }}</option>
             </select>
           </label>
           <label v-if="admitClass?.hasDepartments">Department
@@ -186,14 +187,12 @@ import {
   useClasses,
   useCreateStudent,
   useDepartments,
-  useEnsureSection,
   useFeeCatalog,
   useSections,
   useSubjects,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { studentService } from '@/services'
-import { SECTION_OPTIONS } from '@/types/models'
 import type { FeeCatalogItem } from '@/types/models'
 
 const router = useRouter()
@@ -215,7 +214,7 @@ const form = reactive({
   dateOfBirth: '',
   instituteName: '',
   classId: '',
-  sectionLabel: SECTION_OPTIONS[0] ?? 'A',
+  sectionId: '',
   departmentId: null as string | null,
   selectedSubjects: [] as string[],
 })
@@ -227,6 +226,12 @@ watch(() => form.classId, () => {
 const admitClass = computed(() => classes.value.find((c) => c.id === form.classId))
 const { data: admitDeptData } = useDepartments(() => form.classId || undefined)
 const admitDepartments = computed(() => admitDeptData.value?.data ?? [])
+
+const { data: admitSectionData } = useSections(() => form.classId || undefined)
+const admitSections = computed(() => admitSectionData.value?.data ?? [])
+watch(admitSections, (list) => {
+  if (!list.some((s) => s.id === form.sectionId)) form.sectionId = list[0]?.id ?? ''
+})
 
 // Class-er subject preview: common + department-wise (read-only info).
 const { data: admitSubjectData, isFetching: subjectsFetching } = useSubjects(() => form.classId || undefined)
@@ -373,7 +378,6 @@ function selectStep(target: number): void {
 const formError = ref('')
 const saving = ref(false)
 const { mutateAsync: createStudent } = useCreateStudent()
-const { mutateAsync: ensureSection } = useEnsureSection()
 
 // Optional photo: picked here, uploaded right after the student is created.
 const photoFile = ref<File | null>(null)
@@ -428,9 +432,6 @@ async function save(): Promise<void> {
   if (!validate()) return
   saving.value = true
   try {
-    // Static A/B/C/D, default A. The section row is found-or-created so the
-    // section exists everywhere else exactly when it gains students.
-    const section = await ensureSection({ classId: form.classId, label: form.sectionLabel })
     const created = await createStudent({
       name: form.name.trim(),
       cardId: form.cardId.trim(),
@@ -439,11 +440,11 @@ async function save(): Promise<void> {
       address: form.address.trim(),
       roll: form.roll.trim(),
       classId: form.classId,
-      sectionId: section.id,
+      sectionId: form.sectionId || null,
       departmentId: form.departmentId,
       // Belt-and-braces: only labels visible right now are sent, so a stale
       // tick from a previous scope can never leak into the record.
-      subjects: [...form.selectedSubjects.filter((l) => new Set(visibleSubjectLabels.value).has(l))],
+      subjects: form.selectedSubjects.filter((l) => new Set(visibleSubjectLabels.value).has(l)),
       guardianName: form.guardianName.trim(),
       guardianPhone: form.guardianPhone.trim(),
       guardianPhone2: form.guardianPhone2.trim(),

@@ -5,6 +5,8 @@ export interface NavItem {
   permission: string
   module?: string | string[]
   section?: string
+  /** Only visible when the institute runs teacher-side exam entry. */
+  examEntry?: boolean
 }
 
 export const ADMIN_SECTION_ORDER = [
@@ -73,6 +75,7 @@ export const SUPER_ADMIN_NAV_ITEMS: NavItem[] = [  { name: 'Dashboard', path: '/
 
 export const TEACHER_NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', path: '/teacher/dashboard', icon: 'dashboard', permission: 'teacher.dashboard.view' },
+  { name: 'Exam Marks', path: '/teacher/exams', icon: 'exam', permission: 'teacher.exams.view', module: 'exam_result', examEntry: true },
   { name: 'My Schedule', path: '/teacher/schedule', icon: 'routine', permission: 'teacher.schedule.view', module: 'routine' },
   { name: 'Leaves', path: '/teacher/leaves', icon: 'leave', permission: 'teacher.leaves.view', module: 'payroll' },
   { name: 'Salary', path: '/teacher/salary', icon: 'salary', permission: 'teacher.salary.view', module: 'payroll' },

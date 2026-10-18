@@ -19,8 +19,13 @@
         <label>Subject
           <select v-model="subjectId" class="app-input__control">
             <option value="">Select subject…</option>
-            <option v-for="s in filteredSubjects" :key="s.id" :value="s.id">
-              {{ s.label }}{{ s.department ? ` (${s.department})` : '' }}
+            <option
+              v-for="s in filteredSubjects"
+              :key="s.id"
+              :value="s.id"
+              :disabled="takenByOther(s.id)"
+            >
+              {{ s.label }}{{ s.department ? ` (${s.department})` : '' }}{{ ownerName(s.id) ? ` — ${ownerName(s.id)}` : '' }}
             </option>
           </select>
         </label>
@@ -30,6 +35,7 @@
           </AppButton>
         </div>
       </div>
+      <p class="muted assign-note">A subject with a teacher already assigned cannot be picked — remove that assignment first.</p>
       <p v-if="formError" class="error">{{ formError }}</p>
     </AppCard>
 
@@ -73,11 +79,25 @@ const teacherId = computed(() => String(route.params.id || ''))
 
 const teacherName = ref('')
 const assigned = ref<TeacherSubject[]>([])
+const owners = ref<TeacherSubject[]>([])
 const loading = ref(false)
 const assigning = ref(false)
 const formError = ref('')
 const classFilter = ref('')
 const subjectId = ref('')
+
+// One teacher per subject: label each subject option with its current
+// teacher and block subjects that already belong to someone else.
+const ownerBySubject = computed(() => {
+  const map = new Map<string, TeacherSubject>()
+  for (const r of owners.value) map.set(r.subjectId, r)
+  return map
+})
+const ownerName = (sid: string): string => ownerBySubject.value.get(sid)?.teacherName ?? ''
+const takenByOther = (sid: string): boolean => {
+  const owner = ownerBySubject.value.get(sid)
+  return Boolean(owner && owner.teacherId !== teacherId.value)
+}
 
 const { data: classData } = useClasses()
 const allClasses = computed(() =>
@@ -95,12 +115,14 @@ async function load(): Promise<void> {
   if (!teacherId.value) return
   loading.value = true
   try {
-    const [t, rows] = await Promise.all([
+    const [t, rows, all] = await Promise.all([
       teacherService.get(teacherId.value),
       teacherSubjectService.list(teacherId.value),
+      teacherSubjectService.listAll(),
     ])
     teacherName.value = t.data?.name ?? ''
     assigned.value = rows.data ?? []
+    owners.value = all.data ?? []
   } catch {
     toast.error('Failed to load data')
   } finally {
@@ -157,6 +179,10 @@ onMounted(() => {
 .error {
   color: var(--color-danger);
   font-size: var(--font-size-sm);
+}
+.assign-note {
+  margin-top: var(--spacing-xs);
+  font-size: var(--font-size-xs);
 }
 .assign-grid {
   display: grid;

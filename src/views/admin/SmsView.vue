@@ -775,7 +775,8 @@ const activeTemplateVars = computed<string[]>(() => {
   let m: RegExpExecArray | null
   const body = t.body || ''
   while ((m = re.exec(body)) !== null) {
-    if (!found.includes(m[1])) found.push(m[1])
+    const v = m[1]
+    if (v && !found.includes(v)) found.push(v)
   }
   return found
 })

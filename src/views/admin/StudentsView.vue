@@ -5,6 +5,7 @@
       <div class="page__actions">
         <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportCsv">{{ exporting ? 'Loading…' : 'CSV' }}</AppButton>
         <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportPdf">{{ exporting ? 'Loading…' : 'PDF' }}</AppButton>
+        <AppButton v-if="canManage" variant="ghost" type="button" @click="goImport">Import</AppButton>
         <AppButton @click="goAdmit">+ Admit Student</AppButton>
       </div>
     </div>
@@ -35,15 +36,28 @@
         </select>
       </FilterPanel>
 
+      <div v-if="canManage && selected.length" class="bulk-bar">
+        <span class="bulk-bar__count">{{ selected.length }} selected</span>
+        <select v-model="bulkStatus" class="app-input__control">
+          <option value="">Set status…</option>
+          <option v-for="o in STUDENT_STATUS_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+        </select>
+        <AppButton type="button" :disabled="!bulkStatus || bulkBusy" @click="applyBulkStatus">
+          {{ bulkBusy ? 'Saving…' : 'Apply' }}
+        </AppButton>
+        <button class="link-btn" type="button" @click="selected = []">Clear</button>
+      </div>
+
       <p v-if="isLoading" class="muted">Loading…</p>
       <p v-else-if="isError" class="error">Failed to load students.</p>
       <div v-else class="table-scroll">
       <table class="table">
         <thead>
-          <tr><th>Name</th><th>Roll</th><th>Class</th><th>Dept</th><th>Due (৳)</th><th>Status</th><th></th></tr>
+          <tr><th class="select-col"><input type="checkbox" :checked="allChecked" :disabled="rows.length === 0" @change="toggleAll" /></th><th>Name</th><th>Roll</th><th>Class</th><th>Dept</th><th>Due (৳)</th><th>Status</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="s in rows" :key="s.id">
+            <td><input type="checkbox" :checked="selected.includes(s.id)" @change="toggleOne(s.id)" /></td>
             <td>
               <span class="name-cell">
                 <StudentAvatar :photo-url="s.photoUrl" :name="s.name" :gender="s.gender" :size="32" />
@@ -54,7 +68,7 @@
             <td>{{ classLabel(s.classId) }}</td>
             <td>{{ deptLabel(s.departmentId) }}</td>
             <td>{{ s.dueAmount }}</td>
-            <td><span class="chip">{{ s.status }}</span></td>
+            <td><span class="chip">{{ studentStatusLabel(s.status) }}</span></td>
             <td class="row-actions-cell">
               <span class="row-actions">
                 <button class="link-btn" type="button" @click="goDetails(s.id)">Details</button>
@@ -92,6 +106,7 @@ import AppPagination from '@/components/common/AppPagination.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
 import {
+  useBulkStatusStudents,
   useClasses,
   useDeleteStudent,
   useDepartments,
@@ -102,12 +117,14 @@ import {
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { downloadCsv, studentsPdf } from '@/utils/pdf'
+import { STUDENT_STATUS_OPTIONS, studentStatusLabel } from '@/utils/studentStatus'
 import { studentService } from '@/services'
-import type { Student } from '@/types/models'
+import type { Student, StudentStatus } from '@/types/models'
 
 const toast = useToast()
 const auth = useAuthStore()
 const canDelete = computed(() => auth.can('admin.students.delete'))
+const canManage = computed(() => auth.can('admin.students.manage'))
 const filters = reactive({ search: '', gender: '', classId: '', sectionId: '', departmentId: '' })
 const page = ref(1)
 const perPage = ref(10)
@@ -132,6 +149,40 @@ const { data, isLoading, isError } = useStudents(params)
 const rows = computed(() => data.value?.data.items ?? [])
 const total = computed(() => data.value?.data.pagination.total ?? 0)
 
+// ---------- bulk status (selection is per page; API also supports whole class) ----------
+const selected = ref<string[]>([])
+const bulkStatus = ref<StudentStatus | ''>('')
+const bulkBusy = ref(false)
+const allChecked = computed(
+  () => rows.value.length > 0 && rows.value.every((s) => selected.value.includes(s.id)),
+)
+watch(rows, () => {
+  selected.value = []
+})
+function toggleOne(id: string): void {
+  selected.value = selected.value.includes(id)
+    ? selected.value.filter((x) => x !== id)
+    : [...selected.value, id]
+}
+function toggleAll(): void {
+  selected.value = allChecked.value ? [] : rows.value.map((s) => s.id)
+}
+const { mutateAsync: bulkStatusStudents } = useBulkStatusStudents()
+async function applyBulkStatus(): Promise<void> {
+  if (!bulkStatus.value || !selected.value.length) return
+  bulkBusy.value = true
+  try {
+    const res = await bulkStatusStudents({ status: bulkStatus.value, studentIds: [...selected.value] })
+    toast.success(res.message || `${res.data.updated} student(s) updated`)
+    selected.value = []
+    bulkStatus.value = ''
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed to update status')
+  } finally {
+    bulkBusy.value = false
+  }
+}
+
 const { data: classData } = useClasses()
 const classes = computed(() => classData.value?.data ?? [])
 const classLabel = (id: string): string => classes.value.find((c) => c.id === id)?.label ?? id
@@ -154,6 +205,10 @@ const router = useRouter()
 
 function goAdmit(): void {
   router.push('/admin/students/new')
+}
+
+function goImport(): void {
+  router.push('/admin/students/import')
 }
 
 function goDetails(id: string): void {
@@ -195,7 +250,7 @@ async function exportCsv(): Promise<void> {
     downloadCsv(
       `students-${Date.now()}.csv`,
       ['SL', 'Name', 'Roll', 'Class', 'Dept', 'Phone', 'Guardian', 'Due (Tk)', 'Status'],
-      all.map((s, i) => [i + 1, s.name, String(s.roll ?? ''), classLabel(s.classId), deptLabel(s.departmentId), s.phone || '', s.guardianName || '', Number(s.dueAmount) || 0, s.status]),
+      all.map((s, i) => [i + 1, s.name, String(s.roll ?? ''), classLabel(s.classId), deptLabel(s.departmentId), s.phone || '', s.guardianName || '', Number(s.dueAmount) || 0, studentStatusLabel(s.status)]),
     )
     toast.success(`${all.length} students exported`)
   } catch (e) {
@@ -217,7 +272,7 @@ async function exportPdf(): Promise<void> {
         classLabel: classLabel(s.classId),
         dept: deptLabel(s.departmentId),
         due: Number(s.dueAmount) || 0,
-        status: s.status,
+        status: studentStatusLabel(s.status),
       })),
     })
   } catch (e) {
@@ -267,6 +322,20 @@ async function doDelete(): Promise<void> {
 .page__title {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
+}
+.select-col {
+  width: 36px;
+}
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding-bottom: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+.bulk-bar__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 .muted {
   color: var(--color-text-muted);

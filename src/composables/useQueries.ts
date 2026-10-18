@@ -17,14 +17,15 @@ import {
   settingsService,
   smsService,
   studentService,
+  teacherExamService,
   teacherService,
   teacherSubjectService,
   userService,
   type AppUserInput,
 } from '@/services'
-import type { StudentInput, TeacherInput } from '@/types/models'
+import type { StudentBulkRecord, StudentInput, StudentStatus, TeacherInput } from '@/types/models'
 import type { ListParams } from '@/types/api'
-import type { AttendanceMark, ExamStatus, ExamSubjectInput, LeaveStatus, RoutineInput, SalaryRecord, SchoolEvent, SubjectMarkInput } from '@/types/models'
+import type { AttendanceMark, ExamStatus, ExamSubjectInput, LeaveStatus, RoutineInput, SalaryRecord, SchoolEvent, SubjectConfigInput, SubjectMarkInput, TeacherExamMarkInput } from '@/types/models'
 
 type ParamSource = ListParams | Ref<ListParams> | (() => ListParams)
 
@@ -87,6 +88,32 @@ export function useDeleteStudent() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['students'] })
       qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useBulkStudents() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (records: StudentBulkRecord[]) => studentService.bulk(records),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+export function useBulkStatusStudents() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      status: StudentStatus
+      studentIds?: string[]
+      classId?: string
+      sectionId?: string
+    }) => studentService.bulkStatus(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['students'] })
     },
   })
 }
@@ -219,8 +246,8 @@ function useAcademicInvalidator() {
 export function useCreateClass() {
   const invalidate = useAcademicInvalidator()
   return useMutation({
-    mutationFn: ({ label, hasDepartments }: { label: string; hasDepartments?: boolean }) =>
-      academicService.createClass(label, hasDepartments),
+    mutationFn: (input: { label: string; hasDepartments?: boolean; sortOrder?: number; sections?: string[]; departments?: string[]; startTime?: string; endTime?: string }) =>
+      academicService.createClass(input),
     onSuccess: invalidate,
   })
 }
@@ -236,8 +263,16 @@ export function useDeleteClass() {
 export function useUpdateClass() {
   const invalidate = useAcademicInvalidator()
   return useMutation({
-    mutationFn: ({ id, input }: { id: string; input: { label?: string; hasDepartments?: boolean } }) =>
+    mutationFn: ({ id, input }: { id: string; input: { label?: string; hasDepartments?: boolean; sortOrder?: number; startTime?: string; endTime?: string } }) =>
       academicService.updateClass(id, input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useReorderClasses() {
+  const invalidate = useAcademicInvalidator()
+  return useMutation({
+    mutationFn: (ids: string[]) => academicService.reorderClasses(ids),
     onSuccess: invalidate,
   })
 }
@@ -281,17 +316,6 @@ export function useDeleteSection() {
   return useMutation({
     mutationFn: (id: string) => academicService.deleteSection(id),
     onSuccess: invalidate,
-  })
-}
-
-export function useEnsureSection() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ classId, label }: { classId: string; label: string }) =>
-      academicService.ensureSection(classId, label),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sections'] })
-    },
   })
 }
 
@@ -610,7 +634,8 @@ export function useCreateExam() {
     mutationFn: (input: {
       name: string; examDate: string; classId: string; sectionId: string | null;
       departmentId?: string | null;
-      subjects: ExamSubjectInput[]
+      subjects?: ExamSubjectInput[]
+      includeCommon?: boolean
     }) => examService.create(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['exams'] }),
   })
@@ -647,6 +672,60 @@ export function useDeleteExam() {
   return useMutation({
     mutationFn: (id: string) => examService.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['exams'] }),
+  })
+}
+
+/** Admin fallback: fill/replace one subject row in place (pre-publish). */
+export function usePatchExamSubject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, subjectId, input }: { id: string; subjectId: string; input: SubjectConfigInput }) =>
+      examService.patchSubject(id, subjectId, input),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['exams'] })
+      qc.invalidateQueries({ queryKey: ['exam', vars.id] })
+    },
+  })
+}
+
+// ---------- teacher panel: own exam subjects + marks ----------
+export function useTeacherExams(enabled: MaybeReactive<boolean> = true) {
+  return useQuery({
+    queryKey: ['teacher-exams'],
+    queryFn: () => teacherExamService.list(),
+    enabled: computed(() => resolveReactive(enabled)),
+  })
+}
+
+export function useTeacherExam(id: MaybeReactive<string>) {
+  const key = computed(() => ['teacher-exam', resolveReactive(id)])
+  return useQuery({
+    queryKey: key,
+    queryFn: () => teacherExamService.get(resolveReactive(id)),
+    enabled: computed(() => !!resolveReactive(id)),
+  })
+}
+
+export function useSaveTeacherSubject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ examId, subjectId, input }: { examId: string; subjectId: string; input: SubjectConfigInput }) =>
+      teacherExamService.saveSubject(examId, subjectId, input),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['teacher-exams'] })
+      qc.invalidateQueries({ queryKey: ['teacher-exam', vars.examId] })
+    },
+  })
+}
+
+export function useSaveTeacherMarks() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ examId, subjectId, marks }: { examId: string; subjectId: string; marks: TeacherExamMarkInput[] }) =>
+      teacherExamService.saveMarks(examId, subjectId, marks),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['teacher-exam', vars.examId] })
+    },
   })
 }
 

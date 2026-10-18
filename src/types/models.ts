@@ -12,15 +12,19 @@ export interface AcademicSession {
   label: string
   startDate: string
   endDate: string
-  isActive: boolean
 }
 
 /** A class (e.g. "Class 6") — defined once, shared by every session. */
 export interface SchoolClass {
   id: string
   label: string
+  /** Position on the class ladder (PG=1, Nursery=2, KG=3, Class 1=4 …). */
+  sortOrder: number
   /** Whether the class splits into departments (Science/Arts/Commerce). */
   hasDepartments: boolean
+  /** Daily school hours "HH:MM" (blank = unset, falls back to school times). */
+  startTime: string
+  endTime: string
 }
 
 /** A department/group inside one class (Science, Arts, Commerce). */
@@ -31,15 +35,16 @@ export interface Department {
   isActive: boolean
 }
 
+/**
+ * A section of a class — free-text label. Classes that run shifts simply use
+ * "1st Shift" / "2nd Shift" as the section names (Play Group, Nursery).
+ */
 export interface Section {
   id: string
   classId: string
   label: string
   isActive: boolean
 }
-
-/** Static section labels picked at admit time — no per-class setup needed. */
-export const SECTION_OPTIONS = ['A', 'B', 'C', 'D']
 
 /** One fee head inside a class/department fee structure (legacy matrix). */
 export interface FeeStructureRow {
@@ -99,7 +104,7 @@ export interface Subject {
   amount: number
 }
 
-export type StudentStatus = 'active' | 'inactive'
+export type StudentStatus = 'active' | 'inactive' | 'completed' | 'left'
 
 /** Payload for admitting / updating a student (live backend shape). */
 export interface StudentInput {
@@ -126,7 +131,29 @@ export interface StudentInput {
   instituteName?: string
   totalAmount: number
   paidAmount: number
-  status: 'active' | 'inactive'
+  status: StudentStatus
+}
+
+/** One row for the students bulk import (POST /students/bulk). */
+export interface StudentBulkRecord {
+  name: string
+  unitId: string
+  batchId?: string
+  roll?: string
+  gender?: string
+  phone?: string
+  status?: string
+  guardianName?: string
+  guardianPhone?: string
+  guardianPhone2?: string
+  dateOfBirth?: string
+}
+
+/** POST /students/bulk response body. */
+export interface StudentBulkResult {
+  created: Student[]
+  updated: Student[]
+  errors: { row: number; message: string }[]
 }
 
 /** Payload for adding / updating a teacher (live backend shape). */
@@ -227,6 +254,7 @@ export interface SalaryType {
 export interface TeacherSubject {
   id: string
   teacherId: string
+  teacherName?: string
   subjectId: string
   subjectLabel: string
   classId: string | null
@@ -277,6 +305,24 @@ export interface ExamSubject {
   mcqPass: number
   passRule: 'separate' | 'combine'
   hasSplit: boolean
+  /** Teacher-entry: false while the row still waits for its teacher's numbers. */
+  configured?: boolean
+  /** academics subject this row is linked to (blank on hand-typed rows). */
+  subjectId?: string
+  teacherId?: string
+  teacherName?: string
+  teacherCount?: number
+}
+
+/** One subject row's config — the shape both admin and teacher submit. */
+export interface SubjectConfigInput {
+  fullMarks: number
+  passMarks: number
+  cqFull?: number
+  cqPass?: number
+  mcqFull?: number
+  mcqPass?: number
+  passRule?: 'separate' | 'combine'
 }
 
 export interface ExamSubjectInput {
@@ -288,6 +334,45 @@ export interface ExamSubjectInput {
   mcqFull?: number
   mcqPass?: number
   passRule?: 'separate' | 'combine'
+}
+
+/** Teacher-panel exam: the exam shell with only that teacher's subjects. */
+export interface TeacherExam {
+  id: string
+  name: string
+  examDate: string
+  classId: string
+  sectionId: string | null
+  status: ExamStatus
+  /** Shell mode only: teacher may edit the subject bars (false = admin-owned). */
+  canConfig?: boolean
+  subjects: ExamSubject[]
+  /** Detail fetch only: every student of the exam's class/section. */
+  students?: TeacherExamStudent[]
+}
+
+export interface TeacherExamMark {
+  cq: number
+  mcq: number
+  total: number
+  absent: boolean
+  entered: boolean
+}
+
+export interface TeacherExamStudent {
+  studentId: string
+  studentName: string
+  roll?: number | null
+  /** Keyed by exam-subject id. */
+  marks: Record<string, TeacherExamMark>
+}
+
+export interface TeacherExamMarkInput {
+  studentId: string
+  cq?: number
+  mcq?: number
+  total?: number
+  absent?: boolean
 }
 
 export interface ResultEntry {
@@ -387,6 +472,16 @@ export interface Routine {
   routineType: 'class' | 'exam'
 }
 
+/** One sitting row of the exam routine builder (batch create). */
+export interface ExamEntryInput {
+  date: string
+  startTime: string
+  endTime: string
+  subjects: string[]
+  room?: string
+  teacherIds?: string[]
+}
+
 export interface RoutineInput {
   classId: string
   sectionId: string | null
@@ -398,7 +493,8 @@ export interface RoutineInput {
   teacherName: string
   room: string
   title?: string
-  day: WeekDay
+  /** Class mode: the weekday to save on. Exams derive it from the date. */
+  day?: WeekDay
   /** Class mode: same period on several weekdays (one row per day). */
   days?: WeekDay[]
   date?: string
@@ -406,6 +502,8 @@ export interface RoutineInput {
   endTime: string
   status?: 'active' | 'inactive'
   routineType?: 'class' | 'exam'
+  /** Exam mode: batch builder — every sitting of the series in one save. */
+  entries?: ExamEntryInput[]
 }
 
 // ---------- attendance ----------
@@ -541,6 +639,7 @@ export interface SmsLog {
   templateId?: string
   templateName: string
   templateType?: string
+  examId?: string
   examName?: string
   audience: string
   recipientName?: string
@@ -591,6 +690,10 @@ export interface SchoolSettings {
   /** Card-tap auto SMS toggles (super-admin only). */
   entrySmsEnabled: boolean
   exitSmsEnabled: boolean
+  /** Who fills each exam subject row: the admin (classic) or its teacher. */
+  examEntryMode: 'admin' | 'teacher' | 'marks'
+  /** Exam routine builder: false = one subject per sitting (standard). */
+  examCombinedSitting: boolean
   enabledModules: string[]
 }
 
