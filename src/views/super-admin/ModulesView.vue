@@ -2,7 +2,7 @@
   <div class="page">
     <h1 class="page__title">Module Management</h1>
     <AppCard>
-      <p class="muted">Super-admin only. Toggle modules to lock/unlock them for the whole school. Locked modules hide instantly from sidebar and routes. Admins cannot change these.</p>
+      <p class="muted">Super-admin only. Base modules — Core, Students, Academic Setup and SMS — ship with every school and stay locked here. Toggle the add-ons to lock/unlock them for the whole school: locked modules hide instantly from sidebar and routes. Admins cannot change these.</p>
       <p v-if="isLoading" class="muted">Loading…</p>
       <table v-else class="table">
         <thead>
