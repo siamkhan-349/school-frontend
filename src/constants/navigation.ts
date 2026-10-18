@@ -20,9 +20,9 @@ export const ADMIN_SECTION_ORDER = [
 
 export const ADMIN_NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard', permission: 'admin.dashboard.view', section: 'Overview' },
-  { name: 'Academics', path: '/admin/academics', icon: 'academics', permission: 'admin.dashboard.view', module: 'academics', section: 'Academics' },
-  { name: 'Students', path: '/admin/students', icon: 'students', permission: 'admin.students.view', module: 'students', section: 'People' },
-  { name: 'Card IDs', path: '/admin/students/cards', icon: 'students', permission: 'admin.students.manage', module: 'students', section: 'People' },
+  { name: 'Academics', path: '/admin/academics', icon: 'academics', permission: 'admin.dashboard.view', module: 'core', section: 'Academics' },
+  { name: 'Students', path: '/admin/students', icon: 'students', permission: 'admin.students.view', module: 'core', section: 'People' },
+  { name: 'Card IDs', path: '/admin/students/cards', icon: 'students', permission: 'admin.students.manage', module: 'core', section: 'People' },
   { name: 'Teachers & Staff', path: '/admin/teachers', icon: 'people', permission: 'admin.teachers.view', section: 'People' },
   { name: 'Routine', path: '/admin/routine', icon: 'routine', permission: 'admin.routine.view', module: 'routine', section: 'Academics' },
   { name: 'Attendance', path: '/admin/attendance', icon: 'attendance', permission: 'admin.attendance.view', module: 'attendance', section: 'Academics' },
@@ -36,7 +36,7 @@ export const ADMIN_NAV_ITEMS: NavItem[] = [
   { name: 'Payments', path: '/admin/payments', icon: 'invoice', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
   { name: 'Payroll', path: '/admin/payroll', icon: 'salary', permission: 'admin.dashboard.view', module: 'payroll', section: 'Finance' },
   { name: 'Accounts', path: '/admin/accounts', icon: 'invoice', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
-  { name: 'SMS', path: '/admin/sms', icon: 'sms', permission: 'admin.dashboard.view', module: 'sms', section: 'Communication' },
+  { name: 'SMS', path: '/admin/sms', icon: 'sms', permission: 'admin.dashboard.view', module: 'core', section: 'Communication' },
   { name: 'Notice & Events', path: '/admin/events', icon: 'news', permission: 'admin.dashboard.view', module: 'notice', section: 'Communication' },
   { name: 'Reports', path: '/admin/reports', icon: 'reports', permission: 'admin.reports.view', section: 'System' },
   { name: 'Users', path: '/admin/users', icon: 'people', permission: 'admin.users.view', section: 'System' },
@@ -51,8 +51,8 @@ export const MONITOR_NAV_ITEMS: NavItem[] = [
 /** Accountant works inside /admin with a finance + student-admit subset (no delete). */
 export const ACCOUNTANT_NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', path: '/admin/dashboard', icon: 'dashboard', permission: 'admin.dashboard.view', section: 'Overview' },
-  { name: 'Students', path: '/admin/students', icon: 'students', permission: 'admin.students.view', module: 'students', section: 'People' },
-  { name: 'Card IDs', path: '/admin/students/cards', icon: 'students', permission: 'admin.students.manage', module: 'students', section: 'People' },
+  { name: 'Students', path: '/admin/students', icon: 'students', permission: 'admin.students.view', module: 'core', section: 'People' },
+  { name: 'Card IDs', path: '/admin/students/cards', icon: 'students', permission: 'admin.students.manage', module: 'core', section: 'People' },
   { name: 'Teachers & Staff', path: '/admin/teachers', icon: 'people', permission: 'admin.teachers.view', section: 'People' },
   { name: 'Collect Fee', path: '/admin/fees/collect', icon: 'payments', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },
   { name: 'Fee', path: '/admin/fees', icon: 'payments', permission: 'admin.payments.view', module: 'payment', section: 'Finance' },

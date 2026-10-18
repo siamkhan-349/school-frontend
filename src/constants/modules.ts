@@ -1,13 +1,10 @@
 export const MODULES = {
   CORE: 'core',
-  STUDENTS: 'students',
-  ACADEMICS: 'academics',
   ATTENDANCE: 'attendance',
   ROUTINE: 'routine',
   EXAM_RESULT: 'exam_result',
   PAYMENT: 'payment',
   PAYROLL: 'payroll',
-  SMS: 'sms',
   NOTICE: 'notice',
   PARENT: 'parent',
 } as const
@@ -36,9 +33,9 @@ export interface ModuleCatalogEntry {
 
 /**
  * Platform catalog shown in the super-admin Modules page.
- * Locked rows are base modules that ship with every school: Students +
- * Academic Setup are the spine/master data everything else reads and SMS is
- * free — the API re-adds all four on every write, so they cannot be dropped.
+ * The locked Core row is the whole base set — platform shell, students,
+ * academic setup and free SMS. The API re-adds it on every non-empty write,
+ * so it can never be dropped; the rest are toggleable add-ons.
  */
 export const MODULE_CATALOG: ModuleCatalogEntry[] = [
   {
@@ -46,53 +43,15 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
     label: 'Core',
     category: 'Core',
     locked: true,
-    description: 'The platform shell — logins, roles, settings and the shared dashboard every role uses.',
+    description: 'Ships with every school — the platform shell, students, academic setup and free SMS (sends use the credit balance).',
     features: [
       'Logins, roles & permissions',
-      'School profile & settings',
-      'Role dashboards & reports',
-      'Teachers & staff records',
-      'Admin user management',
-    ],
-  },
-  {
-    key: 'students',
-    label: 'Students',
-    category: 'Core',
-    locked: true,
-    description: 'The student spine — admissions, profiles and guardians everything else reads.',
-    features: [
-      'Admissions & student profiles',
-      'Guardians & contact info',
+      'School settings & role dashboards',
+      'Students — admissions, guardians & ID cards',
       'Bulk import (CSV/Excel)',
-      'Student ID cards',
-    ],
-  },
-  {
-    key: 'academics',
-    label: 'Academic Setup',
-    category: 'Core',
-    locked: true,
-    description: 'Master data — the sessions, classes, sections and subjects every page reads.',
-    features: [
-      'Academic sessions',
-      'Classes, sections & shifts',
-      'Departments & subjects',
-      'Teacher–subject assignment',
-      'Class hours (start & end)',
-    ],
-  },
-  {
-    key: 'sms',
-    label: 'SMS',
-    category: 'Core',
-    locked: true,
-    description: "Bulk SMS at no module cost — sends use the school's SMS credit balance.",
-    features: [
-      'Templates with placeholders',
-      'Bulk send (class, section, group)',
-      'Send log & delivery status',
-      'Credit balance tracking',
+      'Academics — sessions, classes, sections & subjects',
+      'Teacher–subject assignment & class hours',
+      'SMS — templates, bulk send & log',
     ],
   },
   {

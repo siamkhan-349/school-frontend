@@ -2,9 +2,9 @@
   <div class="page">
     <h1 class="page__title">Module Management</h1>
     <p class="page__lead">
-      Super-admin only. Base modules — Core, Students, Academic Setup and SMS — ship with every
-      school and stay locked. Toggle the add-ons to lock/unlock them for the whole school: locked
-      modules hide instantly from the sidebar and routes. Admins cannot change these.
+      Super-admin only. Core ships with every school and stays locked — it carries the platform,
+      students, academic setup and free SMS. Toggle the add-ons to lock/unlock them for the whole
+      school: locked modules hide instantly from the sidebar and routes. Admins cannot change these.
     </p>
 
     <p v-if="isLoading" class="muted">Loading…</p>
@@ -66,7 +66,7 @@ const { mutateAsync: updateModules, isPending: saving } = useUpdateModules()
 const enabledSet = ref<Set<string>>(new Set())
 
 const GROUP_TITLES: Record<string, string> = {
-  Core: 'Base modules — always on',
+  Core: 'Base — always on',
   Academics: 'Academics add-ons',
   Finance: 'Finance add-ons',
   Communication: 'Communication add-ons',
