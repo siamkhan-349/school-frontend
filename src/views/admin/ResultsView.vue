@@ -2,7 +2,7 @@
   <div class="page">
     <h1 class="page__title">Results</h1>
     <AppCard>
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="7" />
       <table v-else class="table">
         <thead>
           <tr><th>Exam</th><th>Class</th><th>Appeared</th><th>Passed</th><th>Pass %</th><th>Topper</th><th></th></tr>
@@ -24,6 +24,7 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useClasses, useExamResults, useExams } from '@/composables/useQueries'
 import { defineComponent, h } from 'vue'
 
@@ -36,16 +37,16 @@ const classMap = computed(() => Object.fromEntries((classData.value?.data ?? [])
 const ResultRow = defineComponent({
   props: { exam: { type: Object as () => { id: string; name: string; classId: string }, required: true } },
   setup(props) {
-    const { data: resultsData } = useExamResults(props.exam.id)
+    const { data: resultsData, isLoading: resultsLoading } = useExamResults(props.exam.id)
     const summary = computed(() => resultsData.value?.data.summary ?? { students: 0, passed: 0, failed: 0, passRate: 0 })
     const topper = computed(() => resultsData.value?.data.rows[0]?.studentName ?? '—')
     return () =>
       h('tr', [
         h('td', props.exam.name),
         h('td', classMap.value[props.exam.classId] ?? props.exam.classId),
-        h('td', String(summary.value.students)),
-        h('td', String(summary.value.passed)),
-        h('td', `${summary.value.passRate}%`),
+        h('td', resultsLoading.value ? h(AppSkeleton, { variant: 'text', width: '28px' }) : String(summary.value.students)),
+        h('td', resultsLoading.value ? h(AppSkeleton, { variant: 'text', width: '28px' }) : String(summary.value.passed)),
+        h('td', resultsLoading.value ? h(AppSkeleton, { variant: 'text', width: '28px' }) : `${summary.value.passRate}%`),
         h('td', topper.value),
         h('td', { class: 'row-actions' }, [
           h(RouterLink, { to: `/admin/exams/${props.exam.id}`, class: 'link-btn' }, () => 'Open'),

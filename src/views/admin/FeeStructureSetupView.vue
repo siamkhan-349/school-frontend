@@ -25,7 +25,7 @@
       </div>
       <p v-if="!struct.classId" class="muted">Pick a class to set its fees.</p>
       <template v-else>
-        <p v-if="structLoading" class="muted">Loading…</p>
+        <AppSkeleton v-if="structLoading" variant="table" :rows="8" :cols="4" />
         <table v-else class="table">
           <thead>
             <tr><th>Fee name</th><th>Amount (৳)</th><th>Cycle</th><th></th></tr>
@@ -50,10 +50,11 @@
               <td class="row-actions">
                 <AppButton
                   variant="ghost"
-                  :disabled="!isDirty(row) || savingRow === rowKey(row)"
+                  :disabled="!isDirty(row)"
+                  :loading="savingRow === rowKey(row)"
                   @click="saveRow(row)"
                 >
-                  {{ savingRow === rowKey(row) ? 'Saving…' : 'Save' }}
+                  Save
                 </AppButton>
               </td>
             </tr>
@@ -66,11 +67,11 @@
           <input v-model="newName" class="app-input__control" placeholder="New fee name…" />
           <input v-model.number="newAmount" type="number" min="0" class="app-input__control amount" placeholder="৳" />
           <input v-model.number="newCycle" type="number" min="0" class="app-input__control amount" placeholder="days (30)" title="0 = one-time, 30 = monthly" />
-          <AppButton type="submit" :disabled="!newName.trim() || addingRow">{{ addingRow ? 'Saving…' : 'Add' }}</AppButton>
+          <AppButton type="submit" :disabled="!newName.trim()" :loading="addingRow">Add</AppButton>
         </form>
         <div class="form-actions">
-          <AppButton :disabled="savingAll || !structDirty" @click="saveAll">
-            {{ savingAll ? 'Saving…' : 'All Save' }}
+          <AppButton :disabled="!structDirty" :loading="savingAll" @click="saveAll">
+            All Save
           </AppButton>
         </div>
       </template>
@@ -83,6 +84,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import {
   useClasses,
   useDepartments,

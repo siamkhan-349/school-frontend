@@ -10,10 +10,10 @@
         <AppButton
           v-if="newRows.length > 0"
           type="button"
-          :disabled="saving"
+          :loading="saving"
           @click="saveSheet"
         >
-          {{ saving ? 'Saving…' : `Save sheet — ৳${draftTotalNet}` }}
+          Save sheet — ৳{{ draftTotalNet }}
         </AppButton>
         <AppButton
           v-if="savedRows.length > 0"
@@ -43,15 +43,15 @@
           v-if="savedRows.length > 0 && pendingSaved.length > 0"
           variant="ghost"
           type="button"
-          :disabled="payingAll"
+          :loading="payingAll"
           @click="markAllPaid"
         >
-          {{ payingAll ? 'Paying…' : 'Mark all paid' }}
+          Mark all paid
         </AppButton>
       </div>
     </div>
 
-    <p v-if="loading" class="muted">Loading draft…</p>
+    <AppSkeleton v-if="loading" variant="table" :rows="8" :cols="10" />
     <p v-else-if="loadError" class="error">{{ loadError }}</p>
     <template v-else>
       <AppCard v-if="newRows.length > 0" title="Review — new sheets (not created yet)">
@@ -99,8 +99,9 @@
         <p v-if="saveResult" class="muted">{{ saveResult }}</p>
       </AppCard>
 
-      <AppCard v-if="savedRows.length > 0" title="Created sheets">
-        <table class="table">
+      <AppCard v-if="savedLoading || savedRows.length > 0" title="Created sheets">
+        <AppSkeleton v-if="savedLoading" variant="table" :rows="8" :cols="10" />
+        <table v-else class="table">
           <thead>
             <tr>
               <th>#</th><th>Teacher</th><th>Basic</th><th>Allow</th><th>Bonus</th>
@@ -142,7 +143,8 @@
                   :disabled="payingId === s.id"
                   @click.stop="payOne(s.id)"
                 >
-                  {{ payingId === s.id ? 'Paying…' : 'Mark paid' }}
+                  <AppSpinner v-if="payingId === s.id" size="sm" label="Working" />
+                  <template v-else>Mark paid</template>
                 </button>
               </td>
             </tr>
@@ -159,10 +161,11 @@
           <p v-if="editError" class="error">{{ editError }}</p>
           <AppButton
             type="button"
-            :disabled="changedCount === 0 || savingEdits"
+            :disabled="changedCount === 0"
+            :loading="savingEdits"
             @click="saveEdits"
           >
-            {{ savingEdits ? 'Saving…' : changedCount > 0 ? `Save changes (${changedCount})` : 'Save changes' }}
+            {{ changedCount > 0 ? `Save changes (${changedCount})` : 'Save changes' }}
           </AppButton>
           <p class="muted small">Edit Bonus / Deduct above, then Save here to save all changes together. Click a row for full detail.</p>
         </div>
@@ -188,6 +191,8 @@ import { useQueryClient } from '@tanstack/vue-query'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import { useGenerateMonth, usePaySalary, useSalaries } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { printWithTitle } from '@/utils/print'
@@ -248,7 +253,7 @@ const rowNet = (r: DraftEdit): number =>
   num(r.basic) + num(r.allowance) + num(r.bonus) - num(r.deduction)
 const draftTotalNet = computed(() => newRows.value.reduce((s, r) => s + rowNet(r), 0))
 
-const { data: salData } = useSalaries(month, year)
+const { data: salData, isLoading: savedLoading } = useSalaries(month, year)
 const savedRows = computed(() => salData.value?.data ?? [])
 
 // Inline edits for created sheets (Bonus / Deduct fixed right here).
@@ -465,6 +470,7 @@ function downloadPdf(): void {
 }
 .head-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
 }
 .muted {
@@ -540,6 +546,7 @@ function downloadPdf(): void {
 .save-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   margin-top: var(--spacing-md);
 }

@@ -288,6 +288,7 @@ const localGender = computed(() => localStudent.value?.gender || '')
   font-weight: 800;
   margin: 0;
   line-height: 1.15;
+  overflow-wrap: anywhere;
 }
 .profile__name--idle {
   color: var(--color-text-secondary);

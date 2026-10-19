@@ -1,7 +1,11 @@
 <template>
   <div class="page">
     <RouterLink to="/admin/exams" class="back">‹ Back to exams</RouterLink>
-    <p v-if="examLoading" class="muted">Loading…</p>
+    <div v-if="examLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="block" height="120px" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="!exam" class="error">Exam not found.</p>
     <template v-else>
       <div class="page__head">
@@ -34,7 +38,7 @@
             <AppButton variant="ghost">Merit List</AppButton>
           </RouterLink>
           <AppButton variant="ghost" :disabled="saving || exam.status === 'published'" @click="autoFill" title="Fill empty cells with realistic demo marks — then click Save Marks">Auto Fill</AppButton>
-          <AppButton :disabled="saving || exam.status === 'published'" @click="saveAll">{{ saving ? 'Saving…' : 'Save Marks' }}</AppButton>
+          <AppButton :loading="saving" :disabled="exam.status === 'published'" @click="saveAll">Save Marks</AppButton>
         </div>
       </div>
 
@@ -45,8 +49,9 @@
           <span v-else class="chip chip--ok">All set</span>
         </div>
         <p v-if="pendingSubjects.length" class="muted setup-note">
-          Publishing is blocked while a subject is still waiting. Assign its teacher, or fill the
-          subject yourself with Fill.
+          Publishing is blocked while a subject is still waiting.
+          <template v-if="school.hasModule('staff')">Assign its teacher, or fill the subject yourself with Fill.</template>
+          <template v-else>Fill the subject yourself with Fill.</template>
         </p>
         <div class="table-scroll">
           <table class="table setup-table">
@@ -66,6 +71,7 @@
                 </td>
                 <td class="setup-actions">
                   <button
+                    v-if="school.hasModule('staff')"
                     class="link-btn"
                     type="button"
                     :disabled="locked || !s.subjectId"
@@ -82,7 +88,7 @@
 
       <div>
         <AppCard title="Marks Entry">
-          <p v-if="entriesLoading" class="muted">Loading students…</p>
+          <AppSkeleton v-if="entriesLoading" variant="table" :rows="8" :cols="6" />
           <div v-else>
           <div class="marks-toolbar">
             <input v-model="search" type="search" placeholder="Search student…" class="app-input__control search" />
@@ -214,7 +220,7 @@
           <p v-if="fillError" class="error">{{ fillError }}</p>
           <div class="dialog__actions">
             <AppButton variant="ghost" :disabled="fillSaving" @click="fillAsk = false">Cancel</AppButton>
-            <AppButton :disabled="fillSaving" @click="saveFill">{{ fillSaving ? 'Saving…' : 'Save' }}</AppButton>
+            <AppButton :loading="fillSaving" @click="saveFill">Save</AppButton>
           </div>
         </div>
       </div>
@@ -237,7 +243,7 @@
           <p v-if="assignError" class="error">{{ assignError }}</p>
           <div class="dialog__actions">
             <AppButton variant="ghost" :disabled="assignSaving" @click="assignAsk = false">Cancel</AppButton>
-            <AppButton :disabled="assignSaving || !assignTeacherId" @click="saveAssign">{{ assignSaving ? 'Assigning…' : 'Assign' }}</AppButton>
+            <AppButton :loading="assignSaving" :disabled="!assignTeacherId" @click="saveAssign">Assign</AppButton>
           </div>
         </div>
       </div>
@@ -261,6 +267,7 @@ import { useRoute } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import PublishExamDialog from '@/components/common/PublishExamDialog.vue'
 import { usePagedList } from '@/composables/usePagedList'
 import {
@@ -298,7 +305,7 @@ function subjectConfigured(s: ExamSubject): boolean {
 const pendingSubjects = computed(() => (exam.value?.subjects ?? []).filter((s) => !subjectConfigured(s)))
 const configuredCount = computed(() => (exam.value?.subjects ?? []).filter(subjectConfigured).length)
 const setupVisible = computed(
-  () => Boolean(exam.value) && (school.examEntryMode !== 'admin' || pendingSubjects.value.length > 0),
+  () => Boolean(exam.value) && (school.teacherExamAccess || pendingSubjects.value.length > 0),
 )
 function setupSummary(s: ExamSubject): string {
   const mode = cellMode(s)
@@ -677,7 +684,7 @@ async function saveFill(): Promise<void> {
 }
 
 const qc = useQueryClient()
-const { data: teacherData } = useTeachers({})
+const { data: teacherData } = useTeachers({}, () => school.hasModule('staff'))
 const teacherChoices = computed(() => (teacherData.value?.data.items ?? []).filter((t) => t.kind !== 'staff'))
 const assignAsk = ref(false)
 const assignSubject = ref<ExamSubject | null>(null)
@@ -831,7 +838,7 @@ async function saveAssign(): Promise<void> {
   }
   .sub-tab {
     flex: 0 0 auto;
-    min-height: 32px;
+    min-height: 36px;
   }
   .grid :deep(.app-card__body) {
     padding: var(--spacing-sm);
@@ -935,6 +942,8 @@ async function saveAssign(): Promise<void> {
   max-width: 200px;
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .col-sub {
   min-width: 150px;
@@ -952,8 +961,8 @@ async function saveAssign(): Promise<void> {
   white-space: nowrap;
 }
 .absent-check {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   accent-color: var(--color-danger);
   cursor: pointer;
 }
@@ -1122,6 +1131,9 @@ async function saveAssign(): Promise<void> {
   box-shadow: var(--shadow-lg);
   padding: var(--spacing-lg);
   width: min(460px, 100%);
+  max-height: min(85vh, 640px);
+  max-height: min(85dvh, 640px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
@@ -1129,6 +1141,7 @@ async function saveAssign(): Promise<void> {
 .dialog__title {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
 }
 .dialog__actions {
   display: flex;
@@ -1138,7 +1151,7 @@ async function saveAssign(): Promise<void> {
 }
 .fill-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--spacing-sm) var(--spacing-md);
 }
 .fill-grid label {

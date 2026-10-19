@@ -11,7 +11,11 @@
       </div>
     </header>
 
-    <p v-if="historyLoading && allRecords.length === 0" class="muted">Loading attendance…</p>
+    <div v-if="historyLoading && allRecords.length === 0" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="block" :height="'280px'" />
+      <AppSkeleton variant="table" :rows="6" :cols="4" />
+    </div>
     <p v-else-if="historyError && allRecords.length === 0" class="error">
       Attendance load hoyni ({{ historyError }}). Internet/backend check kore
       <button type="button" class="link-btn" @click="refetchHistory()">try again</button>.
@@ -163,6 +167,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import {
   useClasses,
   useDepartments,
@@ -653,7 +658,8 @@ const formatTime = (time?: string) => time || '—'
 }
 .att-detail__day-clear {
   margin-left: var(--spacing-xs);
-  padding: 0;
+  min-height: 36px;
+  padding: 0 var(--spacing-xs);
   font-family: inherit;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);

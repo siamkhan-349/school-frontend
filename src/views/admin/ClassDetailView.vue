@@ -1,7 +1,11 @@
 <template>
   <div class="page">
     <RouterLink to="/admin/academics" class="back">‹ All classes</RouterLink>
-    <p v-if="classesLoading" class="muted">Loading…</p>
+    <div v-if="classesLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="!schoolClass" class="error">Class not found.</p>
     <template v-else>
       <div class="hero">
@@ -16,7 +20,7 @@
                 @keyup.enter="saveName"
                 @keyup.esc="cancelName"
               />
-              <AppButton type="button" :disabled="savingName" @click="saveName">{{ savingName ? 'Saving…' : 'Save' }}</AppButton>
+              <AppButton type="button" :loading="savingName" @click="saveName">Save</AppButton>
               <AppButton variant="ghost" type="button" @click="cancelName">Cancel</AppButton>
             </span>
             <button v-if="!editingName" class="name-edit-btn" type="button" title="Edit class name" @click="startNameEdit">✎</button>
@@ -32,7 +36,7 @@
             Order
             <input v-model.number="orderInput" type="number" min="0" class="app-input__control" @change="saveOrder" />
           </label>
-          <label class="order-field" title="Class hours — late cutoff for this class's attendance taps and limit for its class routine periods. Blank = school-wide timings.">
+          <label class="order-field" :title="hoursTitle">
             Hours
             <span class="hours-inputs">
               <input v-model="hoursStart" type="time" class="app-input__control" @change="saveHours" />
@@ -46,7 +50,11 @@
 
       <div class="grid">
         <AppCard title="Departments">
-          <label class="check"><input v-model="deptToggle" type="checkbox" /> This class has departments (Science / Arts / Commerce…)</label>
+          <label class="check">
+            <input v-model="deptToggle" type="checkbox" :disabled="deptSaving" />
+            This class has departments (Science / Arts / Commerce…)
+            <AppSpinner v-if="deptSaving" size="sm" label="Saving" />
+          </label>
           <template v-if="schoolClass.hasDepartments">
             <ul class="list">
               <li v-for="d in departments" :key="d.id" class="list__row">
@@ -54,33 +62,51 @@
                 <button class="link-danger" type="button" @click="askDeleteDepartment(d.id, d.label)">Remove</button>
               </li>
             </ul>
-            <p v-if="!departments.length" class="muted">No departments yet — add Science, Arts, Commerce…</p>
+            <AppSkeleton v-if="departmentsLoading" variant="list" :rows="3" />
+            <p v-else-if="!departments.length" class="muted">No departments yet — add Science, Arts, Commerce…</p>
             <form class="inline-form" @submit.prevent="addDepartment">
               <input v-model="departmentLabel" class="app-input__control" placeholder="e.g. Science" required />
-              <AppButton type="submit" :disabled="creatingDepartment">Add</AppButton>
+              <AppButton type="submit" :loading="creatingDepartment">Add</AppButton>
             </form>
           </template>
         </AppCard>
 
         <AppCard title="Subjects">
-          <h4 v-if="hasDeptRows" class="block-title">Common — every department (Bangla, English, Mathematics…)</h4>
-          <ul class="list">
-            <li v-for="s in commonSubjects" :key="s.id" class="list__row">
-              <span>{{ s.label }} <em v-if="!s.classId" class="muted">· General</em></span>
-              <button class="link-danger" type="button" @click="removeSubject(s.id)">Remove</button>
-            </li>
-          </ul>
-          <p v-if="!commonSubjects.length" class="muted">No {{ hasDeptRows ? 'common ' : '' }}subjects yet.</p>
-
-          <template v-for="d in departments" :key="d.id">
-            <h4 class="block-title">{{ d.label }} only <em class="muted">· {{ deptSubjects(d.id).length }}</em></h4>
+          <AppSkeleton v-if="subjectsLoading" variant="list" :rows="3" />
+          <template v-else>
+            <h4 v-if="hasDeptRows" class="block-title">Common — every department (Bangla, English, Mathematics…)</h4>
             <ul class="list">
-              <li v-for="s in deptSubjects(d.id)" :key="s.id" class="list__row">
-                <span>{{ s.label }}</span>
-                <button class="link-danger" type="button" @click="removeSubject(s.id)">Remove</button>
+              <li v-for="s in commonSubjects" :key="s.id" class="list__row">
+                <span>{{ s.label }} <em v-if="!s.classId" class="muted">· General</em></span>
+                <button
+                  class="link-danger"
+                  type="button"
+                  :disabled="removingSubjectId === s.id"
+                  @click="removeSubject(s.id)"
+                >
+                  <AppSpinner v-if="removingSubjectId === s.id" size="sm" label="Removing" /> Remove
+                </button>
               </li>
             </ul>
-            <p v-if="!deptSubjects(d.id).length" class="muted">No {{ d.label }} subjects yet — e.g. {{ deptExample(d.label) }}.</p>
+            <p v-if="!commonSubjects.length" class="muted">No {{ hasDeptRows ? 'common ' : '' }}subjects yet.</p>
+
+            <template v-for="d in departments" :key="d.id">
+              <h4 class="block-title">{{ d.label }} only <em class="muted">· {{ deptSubjects(d.id).length }}</em></h4>
+              <ul class="list">
+                <li v-for="s in deptSubjects(d.id)" :key="s.id" class="list__row">
+                  <span>{{ s.label }}</span>
+                  <button
+                  class="link-danger"
+                  type="button"
+                  :disabled="removingSubjectId === s.id"
+                  @click="removeSubject(s.id)"
+                >
+                  <AppSpinner v-if="removingSubjectId === s.id" size="sm" label="Removing" /> Remove
+                </button>
+                </li>
+              </ul>
+              <p v-if="!deptSubjects(d.id).length" class="muted">No {{ d.label }} subjects yet — e.g. {{ deptExample(d.label) }}.</p>
+            </template>
           </template>
 
           <form class="inline-form" @submit.prevent="addSubject">
@@ -96,8 +122,8 @@
             <select v-model="copySourceClassId" class="app-input__control">
               <option v-for="c in otherClasses" :key="c.id" :value="c.id">{{ c.label }}</option>
             </select>
-            <AppButton variant="ghost" type="button" :disabled="copying || !copySourceClassId" @click="copySubjects">
-              {{ copying ? 'Copying…' : 'Copy' }}
+            <AppButton variant="ghost" type="button" :disabled="!copySourceClassId" :loading="copying" @click="copySubjects">
+              Copy
             </AppButton>
           </div>
         </AppCard>
@@ -110,7 +136,8 @@
             <button class="link-danger" type="button" @click="askDeleteSection(s.id, s.label)">Remove</button>
           </li>
         </ul>
-        <p v-if="!sections.length" class="muted">No sections yet — add the ones this class runs (e.g. A, B).</p>
+        <AppSkeleton v-if="sectionsLoading" variant="list" :rows="3" />
+        <p v-else-if="!sections.length" class="muted">No sections yet — add the ones this class runs (e.g. A, B).</p>
         <form class="inline-form" @submit.prevent="addSection">
           <input v-model="sectionLabel" class="app-input__control" placeholder="Section name (e.g. Rose or 1st Shift)" required />
           <AppButton type="submit" :disabled="creatingSection">Add</AppButton>
@@ -138,6 +165,8 @@ import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import {
   useClasses,
   useCreateDepartment,
@@ -153,11 +182,23 @@ import {
   useUpdateClass,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import type { Subject } from '@/types/models'
 
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const school = useSchoolStore()
+
+/** Hours tooltip only names the modules that are on — no dead references. */
+const hoursTitle = computed(() => {
+  const attendance = school.hasModule('attendance')
+  const routine = school.hasModule('routine')
+  if (attendance && routine) return "Class hours — late cutoff for this class's attendance taps and limit for its class routine periods. Blank = school-wide timings."
+  if (attendance) return "Class hours — late cutoff for this class's attendance taps. Blank = school-wide timings."
+  if (routine) return 'Class hours — limit for this class routine periods. Blank = school-wide timings.'
+  return 'Class hours. Blank = school-wide timings.'
+})
 const classId = computed(() => String(route.params.classId ?? ''))
 
 const { data: classData, isLoading: classesLoading } = useClasses()
@@ -165,7 +206,7 @@ const schoolClass = computed(() => classData.value?.data.find((c) => c.id === cl
 
 // Scoped queries follow the route id (keys evaluate eagerly, but classId is
 // route-derived and available during setup — no TDZ risk).
-const { data: departmentData } = useDepartments(() => classId.value || undefined)
+const { data: departmentData, isLoading: departmentsLoading } = useDepartments(() => classId.value || undefined)
 const departments = computed(() => departmentData.value?.data ?? [])
 /** Department UI (groups, target dropdown) only makes sense when rows exist. */
 const hasDeptRows = computed(() => departments.value.length > 0)
@@ -175,7 +216,7 @@ const otherClasses = computed(() =>
     .filter((c) => c.id !== classId.value)
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true })),
 )
-const { data: subjectData } = useSubjects(undefined)
+const { data: subjectData, isLoading: subjectsLoading } = useSubjects(undefined)
 const allSubjects = computed(() => subjectData.value?.data ?? [])
 const subjects = computed(() =>
   allSubjects.value.filter((s) => s.classId === classId.value || s.classId === null),
@@ -193,7 +234,7 @@ function deptExample(label: string): string {
   if (l.includes('art') || l.includes('human')) return 'History, Geography'
   return 'group subjects'
 }
-const { data: sectionData } = useSections(() => classId.value || undefined)
+const { data: sectionData, isLoading: sectionsLoading } = useSections(() => classId.value || undefined)
 const sections = computed(() => sectionData.value?.data ?? [])
 
 const departmentLabel = ref('')
@@ -307,15 +348,19 @@ async function addSection(): Promise<void> {
   }
 }
 
+const deptSaving = ref(false)
 const deptToggle = computed({
   get: () => schoolClass.value?.hasDepartments ?? false,
   set: async (on: boolean) => {
-    if (!classId.value) return
+    if (!classId.value || deptSaving.value) return
+    deptSaving.value = true
     try {
       await updateClass({ id: classId.value, input: { hasDepartments: on } })
       toast.success(on ? 'Departments enabled for this class' : 'Departments disabled for this class')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      deptSaving.value = false
     }
   },
 })
@@ -345,12 +390,16 @@ async function addSubject(): Promise<void> {
   }
 }
 
+const removingSubjectId = ref<string | null>(null)
 async function removeSubject(id: string): Promise<void> {
+  removingSubjectId.value = id
   try {
     await deleteSubject(id)
     toast.success('Subject removed')
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Failed')
+  } finally {
+    removingSubjectId.value = null
   }
 }
 
@@ -471,12 +520,14 @@ async function doDelete(): Promise<void> {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
   margin: var(--spacing-sm) 0 var(--spacing-lg);
 }
 .hero-side {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
 }
 .order-field {
@@ -504,22 +555,26 @@ async function doDelete(): Promise<void> {
 .title-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
 }
 .title-edit {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-xs);
 }
 .title-edit .app-input__control {
-  width: 220px;
+  width: min(220px, 100%);
 }
 .name-edit-btn {
   background: none;
   border: none;
   color: var(--color-text-muted);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-lg);
   cursor: pointer;
+  min-width: 36px;
+  min-height: 36px;
   padding: 2px 6px;
   border-radius: 6px;
 }
@@ -567,19 +622,20 @@ async function doDelete(): Promise<void> {
 }
 .inline-form {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   margin-top: var(--spacing-sm);
   align-items: center;
 }
 .inline-form .app-input__control {
-  flex: 1;
+  flex: 1 1 140px;
+  min-width: 0;
 }
 .check {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
   font-size: var(--font-size-sm);
-  white-space: nowrap;
   margin: var(--spacing-sm) 0;
 }
 .link-danger {
@@ -590,6 +646,7 @@ async function doDelete(): Promise<void> {
 }
 .copy-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-sm);
   margin-top: var(--spacing-sm);
@@ -597,7 +654,8 @@ async function doDelete(): Promise<void> {
   padding-top: var(--spacing-sm);
 }
 .copy-row .app-input__control {
-  flex: 1;
+  flex: 1 1 140px;
+  min-width: 0;
 }
 .danger-zone {
   margin-top: var(--spacing-lg);

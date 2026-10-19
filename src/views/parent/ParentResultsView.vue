@@ -7,7 +7,10 @@
           <option v-for="c in children" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
       </FilterPanel>
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <div v-if="isLoading" class="sk-stack">
+        <AppSkeleton variant="card" />
+        <AppSkeleton variant="card" />
+      </div>
       <div v-else>
         <AppCard v-for="g in grouped" :key="g.examId" class="exam-card">
           <h3 class="exam-card__title">{{ g.examName }} <span class="muted">· {{ g.examDate }}</span></h3>
@@ -34,6 +37,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import { useParentResults, useStudents } from '@/composables/useQueries'
 
@@ -95,5 +99,16 @@ const grouped = computed(() => {
   border-radius: var(--radius-full);
   background: var(--color-primary-light);
   font-size: var(--font-size-xs);
+}
+/* Phones: the inner card adds its own padding — flatten it plus the cells
+   so the 4-column result table fits without a nested scroll. */
+@media (max-width: 640px) {
+  .exam-card :deep(.app-card__body) {
+    padding: var(--spacing-sm);
+  }
+  .table th,
+  .table td {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
 }
 </style>

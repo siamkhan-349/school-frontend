@@ -28,6 +28,27 @@ export function satisfiesModuleGate(
   return Array.isArray(gate) ? gate.some((k) => hasModule(k)) : hasModule(gate)
 }
 
+/**
+ * Module -> keys it pulls back on (mirror of the backend MODULE_DEPENDENCIES
+ * in core/frontend_views.py — keep the two in sync). A key can only be
+ * switched off while every dependent that lists it is off too. Screens that
+ * degrade gracefully (routine, exams, notices, logins) stay independent.
+ */
+export const MODULE_DEPENDENCIES: Partial<Record<ModuleKey, ModuleKey[]>> = {
+  payroll: ['staff'],
+  monitor: ['attendance'],
+}
+
+/** Enabled modules (per `enabled`) that keep `key` on via dependency. */
+export function enabledDependentsOf(
+  key: ModuleKey,
+  enabled: (k: ModuleKey) => boolean,
+): ModuleKey[] {
+  return (Object.entries(MODULE_DEPENDENCIES) as [ModuleKey, ModuleKey[]][])
+    .filter(([dependent, deps]) => deps.includes(key) && enabled(dependent))
+    .map(([dependent]) => dependent)
+}
+
 export interface ModuleCatalogEntry {
   key: ModuleKey
   label: string
@@ -66,14 +87,14 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
     key: 'attendance',
     label: 'Attendance',
     category: 'Academics',
-    description: 'Daily student and staff attendance, with live card-tap support.',
+    description: 'Daily student attendance, with live card-tap support.',
     features: [
       'Daily student attendance',
-      'Staff attendance',
       'Live card-tap view (RFID)',
       'Monthly sheets & summaries',
       'Per-student attendance detail',
     ],
+    note: 'Student attendance only — staff attendance lives under Payroll.',
   },
   {
     key: 'routine',
@@ -111,7 +132,7 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
       'Teacher–subject assignment & class hours',
       'Photos & contact details',
     ],
-    note: 'Enabled automatically while Attendance, Routine, Exams, Payroll, Notice or Users is on.',
+    note: 'Enabled automatically while Payroll is on.',
   },
   {
     key: 'payment',
@@ -129,13 +150,15 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
     key: 'payroll',
     label: 'Payroll',
     category: 'Finance',
-    description: 'Staff salary sheets, payments and leave approval.',
+    description: 'Staff attendance, salary sheets, payments and leave approval.',
     features: [
+      'Staff attendance & live card-tap',
       'Monthly salary sheets',
       'Generate & mark paid',
       'Salary types & deductions',
       'Leave requests & approvals',
     ],
+    note: 'Staff attendance (present/absent/late days) feeds the monthly salary sheet.',
   },
   {
     key: 'accounts',
@@ -232,7 +255,7 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
       'Teacher-login linking',
       'Guardian child linking',
     ],
-    note: 'Needs Teachers & Staff — enabled together.',
+    note: 'Teacher-role logins link a Teachers & Staff profile — the role hides while it is off.',
   },
   {
     key: 'settings',

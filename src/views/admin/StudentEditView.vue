@@ -3,12 +3,16 @@
     <div class="page__head">
       <div>
         <h1 class="page__title">Edit Student</h1>
-        <p class="page__hint">Update identity, guardian, class, and the admission total.</p>
+        <p class="page__hint">{{ school.hasModule('payment') ? 'Update identity, guardian, class, and the admission total.' : 'Update identity, guardian and class.' }}</p>
       </div>
       <AppButton variant="ghost" type="button" @click="goBack">← Back</AppButton>
     </div>
 
-    <p v-if="isLoading" class="hint">Loading…</p>
+    <div v-if="isLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="isError || !student" class="error">Student not found.</p>
     <form v-else @submit.prevent="save">
       <AppCard title="Student Identity">
@@ -29,7 +33,7 @@
             <input v-model="form.roll" class="app-input__control" />
             <span v-if="errors.roll" class="field-error">{{ errors.roll }}</span>
           </label>
-          <label>Card ID (optional)
+          <label v-if="school.hasModule('attendance')">Card ID (optional)
             <input v-model="form.cardId" class="app-input__control" placeholder="e.g. RFID card number" />
           </label>
           <label>Guardian name
@@ -51,7 +55,10 @@
           </label>
           <div v-if="photoPreview || student?.photoUrl" class="photo-preview">
             <img :src="photoPreview || student?.photoUrl" alt="Student photo" />
-            <AppButton variant="ghost" type="button" :disabled="photoBusy" @click="removePhotoNow">Remove</AppButton>
+            <AppButton variant="ghost" type="button" :disabled="photoBusy" @click="removePhotoNow">
+              <AppSpinner v-if="photoBusy" size="sm" label="Working" />
+              <template v-else>Remove</template>
+            </AppButton>
           </div>
           <label>Date of birth<input v-model="form.dateOfBirth" type="date" class="app-input__control" /></label>
           <label>Student phone<input v-model="form.phone" class="app-input__control" /></label>
@@ -87,11 +94,11 @@
               <option v-for="o in STUDENT_STATUS_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
             </select>
           </label>
-          <label>Total (৳)
+          <label v-if="school.hasModule('payment')">Total (৳)
             <input v-model.number="form.totalAmount" type="number" min="0" class="app-input__control" />
           </label>
         </div>
-        <p class="hint">If you change the total, the due recalculates automatically (due = total − paid).</p>
+        <p v-if="school.hasModule('payment')" class="hint">If you change the total, the due recalculates automatically (due = total − paid).</p>
         <div v-if="form.classId" class="subjects-preview">
           <p class="subjects-preview__title">Subjects ({{ form.selectedSubjects.length }}) — tick what the student will study</p>
           <div v-if="editCommon.length" class="chip-row">
@@ -112,7 +119,7 @@
       <p v-if="formError" class="error">{{ formError }}</p>
       <div class="form-actions">
         <AppButton variant="ghost" type="button" @click="goBack">Cancel</AppButton>
-        <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save changes' }}</AppButton>
+        <AppButton type="submit" :loading="saving">Save changes</AppButton>
       </div>
     </form>
   </div>
@@ -124,6 +131,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import {
   useClasses,
   useDepartments,
@@ -133,6 +142,7 @@ import {
   useUpdateStudent,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import { studentService } from '@/services'
 import { STUDENT_STATUS_OPTIONS } from '@/utils/studentStatus'
 import type { StudentStatus } from '@/types/models'
@@ -140,6 +150,7 @@ import type { StudentStatus } from '@/types/models'
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const school = useSchoolStore()
 const qc = useQueryClient()
 const id = computed(() => String(route.params.id ?? ''))
 
@@ -417,6 +428,7 @@ form {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
+  min-height: 36px;
   padding: 2px var(--spacing-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);

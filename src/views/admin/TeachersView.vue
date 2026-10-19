@@ -7,7 +7,7 @@
 
     <AppCard>
       <FilterPanel>
-        <input v-model="search" class="app-input__control" placeholder="Search name / phone / card ID…" />
+        <input v-model="search" class="app-input__control" :placeholder="school.hasModule('payroll') ? 'Search name / phone / card ID…' : 'Search name / phone…'" />
         <div class="kind-tabs" role="tablist" aria-label="Filter by type">
           <button type="button" :class="['kind-tab', { 'kind-tab--active': kindFilter === '' }]" @click="kindFilter = ''">All</button>
           <button type="button" :class="['kind-tab', { 'kind-tab--active': kindFilter === 'teacher' }]" @click="kindFilter = 'teacher'">Teachers</button>
@@ -15,11 +15,11 @@
         </div>
       </FilterPanel>
 
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="school.hasModule('payroll') ? 9 : 7" />
       <p v-else-if="isError" class="error">Failed to load teachers.</p>
-      <table v-else class="table">
+      <table v-else class="table" :class="{ 'is-fetching': isFetching && !isLoading }">
         <thead>
-          <tr><th></th><th>Name</th><th>Type</th><th>Designation</th><th>Phone</th><th>Card ID</th><th>Joining</th><th>Basic (৳)</th><th></th></tr>
+          <tr><th></th><th>Name</th><th>Type</th><th>Designation</th><th>Phone</th><th v-if="school.hasModule('payroll')">Card ID</th><th>Joining</th><th v-if="school.hasModule('payroll')">Basic (৳)</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="t in rows" :key="t.id">
@@ -28,9 +28,9 @@
             <td><span class="kind-badge" :class="`kind-badge--${t.kind || 'teacher'}`">{{ (t.kind || 'teacher') === 'staff' ? 'Staff' : 'Teacher' }}</span></td>
             <td>{{ t.designation }}</td>
             <td>{{ t.phone }}</td>
-            <td class="mono">{{ t.cardId || '—' }}</td>
+            <td v-if="school.hasModule('payroll')" class="mono">{{ t.cardId || '—' }}</td>
             <td>{{ t.joiningDate }}</td>
-            <td>{{ t.basicSalary ?? '—' }}</td>
+            <td v-if="school.hasModule('payroll')">{{ t.basicSalary ?? '—' }}</td>
             <td class="row-actions-cell">
               <span class="row-actions">
               <button v-if="(t.kind || 'teacher') === 'teacher'" class="link-btn" type="button" @click="goSubjects(t)">Subjects</button>
@@ -40,12 +40,12 @@
             </td>
           </tr>
           <tr v-if="rows.length === 0">
-            <td colspan="9" class="muted">No teachers or staff yet — use + Add Teacher / Staff to add the first one.</td>
+            <td :colspan="school.hasModule('payroll') ? 9 : 7" class="muted">No teachers or staff yet — use + Add Teacher / Staff to add the first one.</td>
           </tr>
         </tbody>
       </table>
 
-      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" />
+      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" :busy="isFetching" />
     </AppCard>
 
     <Teleport to="body">
@@ -72,8 +72,11 @@
             </label>
             <label>Phone<input v-model="form.phone" class="app-input__control" placeholder="Enter phone number" /></label>
             <label>Designation<input v-model="form.designation" class="app-input__control" placeholder="Enter designation" /></label>
-            <label>Card / Finger ID (for attendance)<input v-model="form.cardId" class="app-input__control" placeholder="Scan or type card ID" /></label>
+            <label v-if="school.hasModule('payroll')">Card / Finger ID (for attendance)<input v-model="form.cardId" class="app-input__control" placeholder="Scan or type card ID" /></label>
+            <label v-if="school.hasModule('payroll') && school.staffOwnTimes">Entry time — own start<input v-model="form.baseTime" type="time" class="app-input__control" /><span class="hint">Per-person timing on: late counts from here (blank = school start)</span></label>
+            <label v-if="school.hasModule('payroll') && school.staffOwnTimes">Exit time — own end<input v-model="form.endTime" type="time" class="app-input__control" /><span class="hint">Exit taps count from here (blank = school end)</span></label>
             <label>Joining Date<input v-model="form.joiningDate" type="date" class="app-input__control" /></label>
+            <template v-if="school.hasModule('payroll')">
             <p class="section-title">Salary (for payroll)</p>
             <label>Salary type
               <select v-model="form.payTypeId" class="app-input__control">
@@ -90,10 +93,11 @@
                 <button v-if="!isPerDayAuto" class="link-btn" type="button" @click="resetPerDay">Reset to auto</button>
               </span>
             </label>
+            </template>
             <p v-if="formError" class="error">{{ formError }}</p>
             <div class="form-actions">
               <AppButton variant="ghost" type="button" @click="form.open = false">Cancel</AppButton>
-              <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</AppButton>
+              <AppButton type="submit" :loading="saving">Save</AppButton>
             </div>
           </form>
         </div>
@@ -117,6 +121,7 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import PersonAvatar from '@/components/common/PersonAvatar.vue'
 import {
@@ -127,12 +132,14 @@ import {
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
+import { useSchoolStore } from '@/stores/school'
 import { teacherService } from '@/services'
 import type { Teacher } from '@/types/models'
 
 const toast = useToast()
 const auth = useAuthStore()
 const canManage = computed(() => auth.can('admin.teachers.manage'))
+const school = useSchoolStore()
 const router = useRouter()
 const search = ref('')
 const kindFilter = ref('')
@@ -154,13 +161,17 @@ const params = computed(() => ({
   page: page.value,
   perPage: perPage.value,
 }))
-const { data, isLoading, isError } = useTeachers(params)
+const { data, isLoading, isFetching, isError } = useTeachers(params)
 const rows = computed(() => data.value?.data.items ?? [])
 const total = computed(() => data.value?.data.pagination.total ?? 0)
 
 const form = reactive({
   open: false, id: '', name: '', kind: 'teacher' as 'teacher' | 'staff',
   phone: '', designation: '', cardId: '', joiningDate: '',
+  /** Own base time "HH:MM" ("" = school start; used while per-person timing is on). */
+  baseTime: '',
+  /** Own end time "HH:MM" ("" = school end; used while per-person timing is on). */
+  endTime: '',
   payTypeId: '', basicSalary: 0,
   extraAllowance: 0,
     overtimeRate: 0, pfPercent: 0, loanDeduction: 0,
@@ -189,7 +200,7 @@ function resetPerDay(): void {
 }
 
 // Salary-type master (Settings): Monthly by default selected.
-const { data: salaryTypeData } = useSalaryTypes()
+const { data: salaryTypeData } = useSalaryTypes(() => school.hasModule('payroll'))
 const salaryTypes = computed(() => salaryTypeData.value?.data ?? [])
 const monthlyId = computed(
   () => (salaryTypeData.value?.data ?? []).find((t) => t.name.toLowerCase() === 'monthly')?.id ?? '',
@@ -240,6 +251,8 @@ function openEdit(t: Teacher): void {
   Object.assign(form, {
     open: true, id: t.id, name: t.name, kind: (t.kind || 'teacher') as 'teacher' | 'staff',
     phone: t.phone, cardId: t.cardId ?? '',
+    baseTime: t.baseTime ?? '',
+    endTime: t.endTime ?? '',
     designation: t.designation, joiningDate: t.joiningDate,
     payTypeId: t.payTypeId ?? '', basicSalary: num(t.basicSalary),
     extraAllowance: num(t.extraAllowance),
@@ -271,6 +284,11 @@ async function saveForm(): Promise<void> {
       kind: form.kind,
       phone: form.phone.trim(),
       cardId: form.cardId.trim(),
+      // Own base time travels only while per-person timing is on; hidden
+      // means "don't touch" (stored values stay).
+      ...(school.hasModule('payroll') && school.staffOwnTimes
+        ? { baseTime: form.baseTime || null, endTime: form.endTime || null }
+        : {}),
       designation: form.designation.trim(),
       joiningDate: form.joiningDate,
       status: 'active' as const,

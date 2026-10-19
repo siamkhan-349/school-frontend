@@ -42,7 +42,8 @@
             category, marks bars and student marks from the teacher panel. An exam with subjects
             still waiting cannot be published.
           </p>
-          <p v-if="classSubjects.length === 0" class="muted span">No subjects set for this class — add them from Academics first.</p>
+          <AppSkeleton v-if="classSubjectsLoading" class="span" variant="lines" :lines="4" />
+          <p v-else-if="classSubjects.length === 0" class="muted span">No subjects set for this class — add them from Academics first.</p>
           <div v-for="s in classSubjects" :key="s.id" class="span owner-row">
             <span class="owner-row__name">{{ s.label }}</span>
             <span v-if="ownerOf(s.id)" class="chip chip--ok">{{ ownerOf(s.id) }}</span>
@@ -54,8 +55,9 @@
           <button class="link-btn" type="button" @click="addSubjectRow">+ Add subject</button>
         </div>
         <p v-if="!form.classId" class="muted span">Select a class first to see subjects.</p>
-        <p v-if="form.classId && classSubjects.length === 0" class="muted span">No subjects set for this class — add them from Academics, or write your own with + Add subject.</p>
-        <template v-if="form.classId" v-for="[group, rows] in groupedSubjects" :key="group">
+        <AppSkeleton v-if="form.classId && classSubjectsLoading" class="span" variant="lines" :lines="4" />
+        <p v-else-if="form.classId && classSubjects.length === 0" class="muted span">No subjects set for this class — add them from Academics, or write your own with + Add subject.</p>
+        <template v-if="form.classId && !classSubjectsLoading" v-for="[group, rows] in groupedSubjects" :key="group">
           <p v-if="groupedSubjects.length > 1" class="span group-head">{{ group }} ({{ rows.length }})</p>
           <div v-for="s in rows" :key="s.name" class="span subj-row">
             <input v-model="s.name" class="app-input__control" placeholder="Subject name" />
@@ -96,7 +98,7 @@
         <p v-if="formError" class="error span">{{ formError }}</p>
         <div class="form-actions">
           <AppButton variant="ghost" type="button" @click="goBack">Cancel</AppButton>
-          <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Create' }}</AppButton>
+          <AppButton type="submit" :loading="saving">Create</AppButton>
         </div>
       </form>
     </AppCard>
@@ -108,6 +110,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useClasses, useClassSubjectTeachers, useCreateExam, useDepartments, useSections, useSubjects } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { useSchoolStore } from '@/stores/school'
@@ -185,7 +188,7 @@ watch(formSections, (list) => {
 })
 const { data: formDeptData } = useDepartments(() => form.classId || undefined)
 const formDepartments = computed(() => formDeptData.value?.data ?? [])
-const { data: classSubjectData } = useSubjects(() => form.classId || undefined)
+const { data: classSubjectData, isLoading: classSubjectsLoading } = useSubjects(() => form.classId || undefined)
 const classSubjects = computed(() => {
   const list = (classSubjectData.value?.data ?? []).filter((s) => s.category === 'subject')
   let scoped = list
@@ -213,7 +216,7 @@ function rowFromLabel(label: string, group: string): SubjectRow {
 // subject row id (not the label) — a class can hold same-label rows in
 // different departments (e.g. Arts Science vs Commerce Science), each with
 // its own teacher, and only the row that will be created matters here.
-const { data: classTeacherData } = useClassSubjectTeachers(() => form.classId || undefined)
+const { data: classTeacherData } = useClassSubjectTeachers(() => (school.hasModule('staff') ? form.classId || undefined : undefined))
 const classTeacherRows = computed(() => classTeacherData.value?.data ?? [])
 const ownerBySubjectId = computed(() => {
   const map = new Map<string, string>()
@@ -382,6 +385,12 @@ async function save(): Promise<void> {
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast);
 }
+/* Keep the visual 40×22 track but grow the tap area to ~36px. */
+.switch::after {
+  content: '';
+  position: absolute;
+  inset: -7px -6px;
+}
 .switch--on {
   background: var(--color-primary);
   border-color: var(--color-primary);
@@ -466,6 +475,8 @@ async function save(): Promise<void> {
 }
 .owner-row__name {
   font-weight: var(--font-weight-medium);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .chip {
   flex: none;

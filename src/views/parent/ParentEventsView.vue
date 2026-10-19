@@ -2,7 +2,7 @@
   <div class="page">
     <h1 class="page__title">Notices & Events</h1>
     <AppCard>
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="isLoading" variant="list" :rows="3" />
       <ul v-else class="events">
         <li v-for="e in published" :key="e.id" class="event">
           <div>
@@ -20,6 +20,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useEvents } from '@/composables/useQueries'
 
 const { data, isLoading } = useEvents()

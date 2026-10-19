@@ -11,7 +11,10 @@
       </div>
     </header>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <div v-if="loading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="table" :rows="10" :cols="6" />
+    </div>
     <p v-else-if="!exam" class="error">Exam not found.</p>
 
     <AppCard v-else class="report-card">
@@ -90,6 +93,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import {
   useClasses,
   useExam,
@@ -191,6 +195,7 @@ function handlePrint(): void {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
 }
 .page-header__title {
@@ -205,6 +210,7 @@ function handlePrint(): void {
 .header-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
 }
 .back {
@@ -230,6 +236,7 @@ function handlePrint(): void {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
   padding-bottom: var(--spacing-md);
   border-bottom: 2px solid var(--color-primary);
@@ -316,6 +323,7 @@ function handlePrint(): void {
 .report-card__foot {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
   padding-top: var(--spacing-md);
   border-top: 1px solid var(--color-border);

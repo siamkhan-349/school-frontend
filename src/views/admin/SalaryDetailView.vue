@@ -10,16 +10,20 @@
         <AppButton
           v-if="sheet && sheet.status !== 'paid'"
           type="button"
-          :disabled="paying"
+          :loading="paying"
           @click="markPaid"
         >
-          {{ paying ? 'Paying…' : `Mark paid — ৳${netPreview}` }}
+          Mark paid — ৳{{ netPreview }}
         </AppButton>
         <AppButton variant="ghost" type="button" @click="askRemove">Delete</AppButton>
       </div>
     </div>
 
-    <p v-if="isLoading" class="muted">Loading…</p>
+    <div v-if="isLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="isError || !sheet" class="error">Salary sheet not found.</p>
     <template v-else>
       <div class="cards">
@@ -41,7 +45,7 @@
             <label>Payment date (empty = pending)<input v-model="form.paymentDate" type="date" class="app-input__control" /></label>
             <label>Notes<input v-model="form.notes" class="app-input__control" placeholder="Optional note" /></label>
             <p v-if="formError" class="error">{{ formError }}</p>
-            <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save changes' }}</AppButton>
+            <AppButton type="submit" :loading="saving">Save changes</AppButton>
           </form>
         </AppCard>
       </div>
@@ -73,6 +77,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useDeleteSalary, usePaySalary, useSalary, useUpdateSalary } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 
@@ -198,22 +203,31 @@ async function doRemove(): Promise<void> {
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
 }
+@media (max-width: 640px) {
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
 .breakdown {
   margin: 0;
 }
 .breakdown > div {
   display: flex;
   justify-content: space-between;
+  gap: var(--spacing-sm);
   padding: var(--spacing-xs) 0;
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
 }
 .breakdown dt {
   color: var(--color-text-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .breakdown dd {
   margin: 0;
   font-weight: var(--font-weight-semibold);
+  flex-shrink: 0;
 }
 .breakdown .gross dd,
 .breakdown .net dd {

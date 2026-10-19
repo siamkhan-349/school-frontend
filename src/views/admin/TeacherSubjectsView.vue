@@ -30,9 +30,7 @@
           </select>
         </label>
         <div class="assign-action">
-          <AppButton type="button" :disabled="!subjectId || assigning" @click="assign">
-            {{ assigning ? 'Assigning…' : 'Assign' }}
-          </AppButton>
+          <AppButton type="button" :disabled="!subjectId" :loading="assigning" @click="assign">Assign</AppButton>
         </div>
       </div>
       <p class="muted assign-note">A subject with a teacher already assigned cannot be picked — remove that assignment first.</p>
@@ -41,7 +39,10 @@
 
     <AppCard>
       <h3 class="card-title">Assigned subjects ({{ assigned.length }})</h3>
-      <p v-if="loading" class="muted">Loading…</p>
+      <div v-if="loading" class="sk-stack">
+        <AppSkeleton variant="card" />
+        <AppSkeleton variant="card" />
+      </div>
       <p v-else-if="!assigned.length" class="muted">No subjects assigned yet.</p>
       <table v-else class="table">
         <thead>
@@ -53,7 +54,10 @@
             <td>{{ r.classLabel || '—' }}</td>
             <td>{{ r.department || '—' }}</td>
             <td class="row-actions-cell">
-              <button class="link-btn link-btn--danger" type="button" @click="unassign(r)">Remove</button>
+              <button class="link-btn link-btn--danger" type="button" :disabled="unassigningId === r.id" @click="unassign(r)">
+                <AppSpinner v-if="unassigningId === r.id" size="sm" label="Working" />
+                <template v-else>Remove</template>
+              </button>
             </td>
           </tr>
         </tbody>
@@ -67,6 +71,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import { useClasses, useSubjects } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { teacherService, teacherSubjectService } from '@/services'
@@ -82,6 +88,7 @@ const assigned = ref<TeacherSubject[]>([])
 const owners = ref<TeacherSubject[]>([])
 const loading = ref(false)
 const assigning = ref(false)
+const unassigningId = ref<string | null>(null)
 const formError = ref('')
 const classFilter = ref('')
 const subjectId = ref('')
@@ -147,12 +154,15 @@ async function assign(): Promise<void> {
 }
 
 async function unassign(row: TeacherSubject): Promise<void> {
+  unassigningId.value = row.id
   try {
     await teacherSubjectService.unassign(row.id)
     toast.success('Subject removed')
     await load()
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Remove failed')
+  } finally {
+    unassigningId.value = null
   }
 }
 
@@ -195,6 +205,16 @@ onMounted(() => {
   flex-direction: column;
   gap: var(--spacing-xs);
   font-size: var(--font-size-sm);
+  min-width: 0;
+}
+.assign-grid .app-input__control {
+  min-width: 0;
+}
+/* Phones: stack subject → teacher → Assign button. */
+@media (max-width: 640px) {
+  .assign-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .card-title {
   font-size: var(--font-size-lg);

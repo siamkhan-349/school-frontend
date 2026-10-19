@@ -1,37 +1,52 @@
 <template>
   <div class="login">
-    <AppCard title="School Login">
-      <form class="login__form" @submit.prevent="onSubmit">
-        <AppInput v-model="identifier" label="Username" placeholder="admin" />
-        <AppInput v-model="password" label="Password" type="password" placeholder="••••••••" />
-        <p v-if="error" class="login__error">{{ error }}</p>
-        <AppButton type="submit" :disabled="busy">{{ busy ? 'Signing in…' : 'Login' }}</AppButton>
+    <div class="login__panel">
+      <div class="login__brand">
+        <span class="login__logo" aria-hidden="true">
+          <School :size="30" />
+        </span>
+        <h1 class="login__wordmark">School Management</h1>
+      </div>
 
-        <div class="login__quick">
-          <p class="login__quick-title">Quick login — click to fill (one per panel):</p>
-          <div class="login__quick-btns">
-            <button
-              v-for="a in QUICK_ACCOUNTS"
-              :key="a.username"
-              type="button"
-              class="login__quick-btn"
-              :class="{ 'login__quick-btn--active': identifier === a.username }"
-              :title="`${a.username} / ${a.password}`"
-              @click="fill(a)"
-            >
-              {{ a.label }}
-              <span class="login__quick-cred">{{ a.username }} / {{ a.password }}</span>
-            </button>
-          </div>
+      <AppCard>
+        <div class="login__head">
+          <h2 class="login__title">Welcome back</h2>
+          <p class="login__sub">Sign in to continue to your panel</p>
         </div>
-      </form>
-    </AppCard>
+
+        <form class="login__form" @submit.prevent="onSubmit">
+          <AppInput v-model="identifier" label="Username" placeholder="admin" />
+          <AppInput v-model="password" label="Password" type="password" placeholder="••••••••" />
+          <p v-if="error" class="login__error">{{ error }}</p>
+          <AppButton type="submit" :loading="busy">Login</AppButton>
+
+          <div class="login__quick">
+            <p class="login__quick-title">Quick login — click to fill (one per panel):</p>
+            <div class="login__quick-btns">
+              <button
+                v-for="a in QUICK_ACCOUNTS"
+                :key="a.username"
+                type="button"
+                class="login__quick-btn"
+                :class="{ 'login__quick-btn--active': identifier === a.username }"
+                :title="`${a.username} / ${a.password}`"
+                @click="fill(a)"
+              >
+                {{ a.label }}
+                <span class="login__quick-cred">{{ a.username }} / {{ a.password }}</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </AppCard>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { School } from 'lucide-vue-next'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppInput from '@/components/common/AppInput.vue'
@@ -109,15 +124,70 @@ async function onSubmit(): Promise<void> {
 <style scoped>
 .login {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
-  place-items: center;
-  padding: var(--spacing-lg);
+  padding: var(--spacing-lg) var(--spacing-md);
+  padding-bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom, 0px));
+  /* Whisper-soft brand glow at the top — barely there in both themes. */
+  background-image: radial-gradient(
+    900px 420px at 50% 0%,
+    var(--color-primary-light),
+    transparent 70%
+  );
+}
+/* The panel centers itself with auto margins (not place-items) so a page that
+   grows past the viewport — brand block + long quick-login card on short
+   screens — scrolls from the top instead of clipping the logo. */
+.login__panel {
+  width: min(440px, 100%);
+  margin: auto;
+  display: grid;
+  gap: var(--spacing-lg);
+}
+.login__brand {
+  display: grid;
+  justify-items: center;
+  gap: var(--spacing-xs);
+  text-align: center;
+}
+.login__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  margin-bottom: var(--spacing-xs);
+  border-radius: var(--radius-full);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  box-shadow: var(--shadow-md);
+}
+.login__wordmark {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.02em;
+  line-height: var(--line-height-tight);
+}
+.login__head {
+  margin-bottom: var(--spacing-lg);
+}
+.login__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+}
+.login__sub {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+/* Login card sits a touch higher than the default card. */
+.login :deep(.app-card) {
+  box-shadow: var(--shadow-lg);
 }
 .login__form {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  min-width: min(380px, 90vw);
+  min-width: 0;
 }
 .login__error {
   color: var(--color-danger);
@@ -142,8 +212,8 @@ async function onSubmit(): Promise<void> {
 .login__quick-btn {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  gap: var(--spacing-xs) var(--spacing-sm);
   min-height: 40px;
   padding: var(--spacing-xs) var(--spacing-md);
   border-radius: var(--radius-md);
@@ -162,8 +232,19 @@ async function onSubmit(): Promise<void> {
   background: var(--color-primary-light);
 }
 .login__quick-cred {
+  margin-left: auto;
   color: var(--color-text-muted);
   font-weight: var(--font-weight-normal);
   font-size: var(--font-size-xs);
+}
+/* Very narrow phones: stack label above credentials instead of squeezing. */
+@media (max-width: 420px) {
+  .login__quick-btn {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .login__quick-cred {
+    margin-left: 0;
+  }
 }
 </style>

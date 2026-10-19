@@ -17,7 +17,19 @@
       </div>
     </div>
 
-    <p v-if="isLoading" class="muted">Loading dashboard…</p>
+    <div v-if="isLoading" class="sk-stack">
+      <div class="admin-dashboard__stats">
+        <AppCard v-for="n in 5" :key="n">
+          <AppSkeleton variant="lines" :lines="3" />
+        </AppCard>
+      </div>
+      <AppCard class="panel-card">
+        <AppSkeleton variant="lines" :lines="2" />
+      </AppCard>
+      <AppCard class="panel-card">
+        <AppSkeleton variant="block" :height="'200px'" />
+      </AppCard>
+    </div>
     <p v-else-if="isError" class="error">Failed to load dashboard.</p>
 
     <div v-else class="admin-dashboard__stats">
@@ -59,7 +71,7 @@
     </AppCard>
 
     <div v-if="!isLoading && !isError" class="admin-dashboard__grid">
-      <AppCard v-if="collectionChart" class="panel-card">
+      <AppCard v-if="school.hasModule('payment') && collectionChart" class="panel-card">
         <div class="panel-card__header">
           <h2 class="panel-card__title">Collections — last 6 months</h2>
           <RouterLink to="/admin/reports" class="panel-card__link">Reports</RouterLink>
@@ -69,7 +81,7 @@
         </div>
       </AppCard>
 
-      <AppCard v-if="attendanceChart" class="panel-card">
+      <AppCard v-if="school.hasModule('attendance') && attendanceChart" class="panel-card">
         <div class="panel-card__header">
           <h2 class="panel-card__title">Attendance by class</h2>
           <RouterLink to="/admin/attendance" class="panel-card__link">Open</RouterLink>
@@ -98,6 +110,7 @@
             >Collect</RouterLink>
           </div>
         </div>
+        <AppSkeleton v-else-if="duesLoading" variant="list" :rows="3" />
         <p v-else class="panel-card__empty">No outstanding dues.</p>
       </AppCard>
 
@@ -123,8 +136,8 @@
             >Details</RouterLink>
           </div>
         </div>
+        <AppSkeleton v-else-if="liveLoading" variant="list" :rows="3" />
         <p v-else class="panel-card__empty">No attendance yet today.</p>
-        <p class="panel-card__foot">Auto-refreshes every 15s.</p>
       </AppCard>
 
       <AppCard class="panel-card">
@@ -142,6 +155,7 @@
             <RouterLink :to="`/admin/students/${s.id}`" class="panel-card__link">View</RouterLink>
           </div>
         </div>
+        <AppSkeleton v-else-if="recentLoading" variant="list" :rows="3" />
         <p v-else class="panel-card__empty">No students yet.</p>
       </AppCard>
 
@@ -159,6 +173,7 @@
             <span class="status-badge">{{ e.status }}</span>
           </div>
         </div>
+        <AppSkeleton v-else-if="examsLoading" variant="list" :rows="3" />
         <p v-else class="panel-card__empty">No exams yet.</p>
       </AppCard>
     </div>
@@ -183,6 +198,7 @@ import { useRouter } from 'vue-router'
 import type { ModuleKey } from '@/constants/modules'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
 import { useChartPalette } from '@/composables/useChartPalette'
 import {
@@ -270,7 +286,7 @@ function formatTaka(amount: number): string {
   return `৳${Math.round(amount || 0).toLocaleString()}`
 }
 
-const { data: duesData } = useDues()
+const { data: duesData, isLoading: duesLoading } = useDues(() => school.hasModule('payment'))
 const outstandingRows = computed(() =>
   (duesData.value?.data ?? []).filter((s) => (s.dueAmount ?? 0) > 0),
 )
@@ -280,16 +296,16 @@ const topDueStudents = computed(() =>
     .slice(0, 5),
 )
 
-const { data: recentData } = useStudents({ perPage: 5, ordering: '-created_at' })
+const { data: recentData, isLoading: recentLoading } = useStudents({ perPage: 5, ordering: '-created_at' })
 const recentStudents = computed(() => recentData.value?.data.items ?? [])
 
-const { data: liveData } = useRecentAttendance(10)
+const { data: liveData, isLoading: liveLoading } = useRecentAttendance(10, 15000, () => school.hasModule('attendance'))
 const liveAttendance = computed(() => liveData.value?.data ?? [])
 
 // ---------- Today's attendance strip (click a card → see WHO) ----------
 // Latest school day with marks (today isn't marked yet in the morning).
   // Picking a date overrides it — to view another day, change the date.
-const { data: attSumData } = useAttendanceSummary()
+const { data: attSumData } = useAttendanceSummary(undefined, undefined, undefined, () => school.hasModule('attendance'))
 const stripPicked = ref('')
 const stripDate = computed(() => stripPicked.value || attSumData.value?.data?.[0]?.date || new Date().toISOString().slice(0, 10))
 const stripTitle = computed(() => {
@@ -305,7 +321,7 @@ const stripTitle = computed(() => {
   if (d === yesterday) return `Yesterday's Attendance — ${d}`
   return `Attendance — ${d}`
 })
-const { data: dayData, isFetching: dayFetching } = useAttendanceDay(stripDate)
+const { data: dayData, isFetching: dayFetching } = useAttendanceDay(stripDate, () => school.hasModule('attendance'))
 const todaySheet = computed(() => dayData.value?.data ?? [])
 const todayCounts = computed(() => ({
   present: todaySheet.value.filter((r) => r.status === 'present').length,
@@ -318,7 +334,7 @@ function openDrill(status: DrillStatus): void {
   router.push({ path: `/admin/attendance/day/${stripDate.value}`, query: { status } })
 }
 
-const { data: examData } = useExams({ perPage: 5 })
+const { data: examData, isLoading: examsLoading } = useExams({ perPage: 5 }, () => school.hasModule('exam_result'))
 const recentExams = computed(() => (examData.value?.data.items ?? []).slice(0, 5))
 
 const { data: classData } = useClasses()
@@ -609,11 +625,6 @@ const rateChartOptions = computed<ChartOptions<'bar'>>(() => ({
 .att-pill--late {
   background: var(--color-warning-light, #fef3c7);
   color: var(--color-warning, #b45309);
-}
-.panel-card__foot {
-  margin: var(--spacing-sm) 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
 }
 .status-badge {
   padding: 2px var(--spacing-sm);

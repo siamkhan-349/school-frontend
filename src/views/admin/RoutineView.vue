@@ -30,7 +30,7 @@
             <option :value="null">All departments</option>
             <option v-for="d in filterDepartments" :key="d.id" :value="d.id">{{ d.label }}</option>
           </select>
-          <select v-model="teacherId" class="app-input__control">
+          <select v-if="school.hasModule('staff')" v-model="teacherId" class="app-input__control">
             <option value="">All teachers</option>
             <option v-for="t in teachers" :key="t.id" :value="t.id">{{ t.name }}</option>
           </select>
@@ -59,10 +59,10 @@
           </div>
         </FilterPanel>
 
-        <p v-if="isLoading && !routines.length" class="muted">Loading…</p>
+        <AppSkeleton v-if="isLoading && !routines.length" variant="table" :rows="7" :cols="6" />
         <template v-else>
           <!-- Class: weekly grid (day × time slot) so clashes are visible. -->
-          <div v-if="mode === 'class'" class="table-scroll">
+          <div v-if="mode === 'class'" class="table-scroll" :class="{ 'is-fetching': isFetching && !isLoading }">
             <table class="grid">
               <thead>
                 <tr><th class="grid__day">Day</th><th v-for="slot in slots" :key="slot">{{ slot }}</th></tr>
@@ -90,7 +90,7 @@
             </table>
           </div>
           <!-- Exam: grouped by exam name + date. -->
-          <div v-else>
+          <div v-else :class="{ 'is-fetching': isFetching && !isLoading }">
             <div v-for="group in examGroups" :key="group.key" class="exam-group">
               <h3 class="exam-group__title">{{ group.title }} <span class="muted">· {{ group.date }} ({{ dayLabel(group.day) }})</span></h3>
               <table class="table">
@@ -157,6 +157,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import {
   useClasses,
@@ -169,6 +170,7 @@ import {
   useTeachers,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import { downloadCsv, routinePdf } from '@/utils/pdf'
 import { printWithTitle } from '@/utils/print'
 import { WEEK_DAYS, type Routine, type WeekDay } from '@/types/models'
@@ -180,6 +182,7 @@ const DAY_LABELS: Record<WeekDay, string> = {
 const dayLabel = (d: WeekDay): string => DAY_LABELS[d] ?? d
 
 const toast = useToast()
+const school = useSchoolStore()
 const route = useRoute()
 const router = useRouter()
 const mode = ref<'class' | 'exam'>(route.query.type === 'exam' ? 'exam' : 'class')
@@ -255,12 +258,12 @@ const subjectDeptOf = computed(() => {
   return map
 })
 
-const { data, isLoading } = useRoutines(
+const { data, isLoading, isFetching } = useRoutines(
   () => classId.value || undefined,
   undefined,
   () => mode.value,
 )
-const { data: teacherData } = useTeachers({ perPage: 500 })
+const { data: teacherData } = useTeachers({ perPage: 500 }, () => school.hasModule('staff'))
 const teachers = computed(() => teacherData.value?.data.items ?? [])
 const rooms = computed(() => {
   const set = new Set<string>()

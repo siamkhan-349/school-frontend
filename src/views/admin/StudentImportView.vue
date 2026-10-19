@@ -64,9 +64,7 @@
       </ul>
       <p v-if="formError" class="error">{{ formError }}</p>
       <div class="form-actions">
-        <AppButton type="button" :disabled="sending || !parsed.length" @click="send">
-          {{ sending ? 'Importing…' : `Import ${parsed.length} rows` }}
-        </AppButton>
+        <AppButton type="button" :disabled="!parsed.length" :loading="sending" @click="send">Import</AppButton>
       </div>
     </AppCard>
   </div>

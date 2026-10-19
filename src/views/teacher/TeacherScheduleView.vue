@@ -1,7 +1,10 @@
 <template>
   <div class="page">
     <h1 class="page__title">My Schedule</h1>
-    <p v-if="meLoading" class="muted">Loading…</p>
+    <div v-if="meLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="!teacher" class="error">
       No teacher/staff profile is linked to this login. Ask the admin to link one from Users.
     </p>
@@ -20,9 +23,10 @@
             </li>
           </ul>
         </AppCard>
+        <AppSkeleton v-else-if="routinesLoading" variant="lines" :lines="1" />
         <p v-else class="muted">No classes.</p>
       </div>
-      <p v-if="myRoutines.length === 0" class="muted">No classes assigned yet{{ teacher.kind === 'staff' ? ' (staff role — no teaching load expected)' : '' }}.</p>
+      <p v-if="!routinesLoading && myRoutines.length === 0" class="muted">No classes assigned yet{{ teacher.kind === 'staff' ? ' (staff role — no teaching load expected)' : '' }}.</p>
     </template>
   </div>
 </template>
@@ -30,6 +34,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useClasses, useMyTeacher, useRoutines } from '@/composables/useQueries'
 import { WEEK_DAYS, type Routine, type WeekDay } from '@/types/models'
 
@@ -37,7 +42,7 @@ const { data: meData, isLoading: meLoading } = useMyTeacher()
 const teacher = computed(() => meData.value?.data)
 const teacherId = computed(() => teacher.value?.id ?? '')
 
-const { data: routineData } = useRoutines(undefined, undefined, 'class')
+const { data: routineData, isLoading: routinesLoading } = useRoutines(undefined, undefined, 'class')
 const myRoutines = computed(() =>
   (routineData.value?.data ?? [])
     .filter((r) => r.status === 'active' && teacherId.value && (r.teacherIds ?? []).includes(teacherId.value))

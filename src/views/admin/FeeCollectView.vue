@@ -77,13 +77,13 @@
         <label>Notes<input v-model="form.notes" class="app-input__control" placeholder="optional" /></label>
         <p class="muted">Due after this collection: ৳{{ previewDue }}</p>
         <p v-if="formError" class="error">{{ formError }}</p>
-        <AppButton type="submit" :disabled="collecting">{{ collecting ? 'Collecting…' : 'Collect' }}</AppButton>
+        <AppButton type="submit" :loading="collecting">Collect</AppButton>
       </form>
     </AppCard>
 
     <AppCard v-if="pickedStudent" title="Payment history" class="collect-history">
       <p class="muted">{{ pickedStudent.name }}<span v-if="pickedStudent.roll"> · Roll {{ pickedStudent.roll }}</span></p>
-      <p v-if="histLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="histLoading" variant="table" :rows="5" :cols="6" />
       <div v-else class="table-wrap">
       <table class="table">
         <thead>
@@ -116,6 +116,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import {
   useCollectPayment,
   useFeeCatalog,
@@ -639,6 +640,7 @@ async function collect(): Promise<void> {
 .single-due {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--color-warning-light, var(--color-primary-light));
@@ -653,7 +655,9 @@ async function collect(): Promise<void> {
 }
 .single-due__name {
   font-weight: var(--font-weight-semibold);
-  flex: 1;
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .single-due__amount {
   font-weight: var(--font-weight-bold);

@@ -7,6 +7,7 @@
         <strong>{{ balance.remaining }}/{{ balance.total }}</strong>
         <span class="muted">used {{ balance.used }}</span>
       </div>
+      <AppSkeleton v-else-if="balanceLoading" variant="chip" :width="'96px'" />
     </div>
 
     <div class="main-tabs">
@@ -23,30 +24,38 @@
     <!-- OVERVIEW -->
     <div v-show="activeTab === 'overview'">
       <div class="stat-grid">
-        <AppCard><p class="stat-label">Total Credits</p><p class="stat-value">{{ balance?.total ?? 0 }}</p></AppCard>
-        <AppCard><p class="stat-label">Used</p><p class="stat-value">{{ balance?.used ?? 0 }}</p></AppCard>
-        <AppCard><p class="stat-label">Remaining</p><p class="stat-value">{{ balance?.remaining ?? 0 }}</p></AppCard>
+        <AppCard><p class="stat-label">Total Credits</p><AppSkeleton v-if="balanceLoading" variant="text" width="64px" /><p v-else class="stat-value">{{ balance?.total ?? 0 }}</p></AppCard>
+        <AppCard><p class="stat-label">Used</p><AppSkeleton v-if="balanceLoading" variant="text" width="64px" /><p v-else class="stat-value">{{ balance?.used ?? 0 }}</p></AppCard>
+        <AppCard><p class="stat-label">Remaining</p><AppSkeleton v-if="balanceLoading" variant="text" width="64px" /><p v-else class="stat-value">{{ balance?.remaining ?? 0 }}</p></AppCard>
       </div>
       <AppCard title="Credit Usage">
-        <div class="usage-bar"><div class="usage-bar__fill" :style="{ width: `${usedPct}%` }"></div></div>
+        <AppSkeleton v-if="balanceLoading" variant="block" :height="'12px'" />
+        <div v-else class="usage-bar"><div class="usage-bar__fill" :style="{ width: `${usedPct}%` }"></div></div>
         <p class="muted">{{ balance?.used ?? 0 }} used / {{ balance?.remaining ?? 0 }} remaining · {{ usedPct }}% consumed</p>
       </AppCard>
       <AppCard title="Delivery Snapshot">
         <p class="muted">Based on {{ logs.length }} recorded messages.</p>
         <div class="chips-row">
-          <span class="pill pill--sent">Sent {{ statusCounts.sent }}</span>
-          <span class="pill pill--failed">Failed {{ statusCounts.failed }}</span>
-          <span class="pill pill--pending">Pending {{ statusCounts.pending }}</span>
+          <template v-if="allLogsLoading">
+            <AppSkeleton variant="chip" />
+            <AppSkeleton variant="chip" />
+            <AppSkeleton variant="chip" />
+          </template>
+          <template v-else>
+            <span class="pill pill--sent">Sent {{ statusCounts.sent }}</span>
+            <span class="pill pill--failed">Failed {{ statusCounts.failed }}</span>
+            <span class="pill pill--pending">Pending {{ statusCounts.pending }}</span>
+          </template>
         </div>
       </AppCard>
-      <AppCard title="Quick Alerts">
+      <AppCard v-if="school.hasModule('payment') || school.hasModule('attendance')" title="Quick Alerts">
         <p class="muted">One-tap bulk alert to guardians with a phone number on file.</p>
         <div class="quick-row">
-          <AppButton variant="ghost" :disabled="quickBusy" @click="runQuickAlert('fees')">
-            {{ quickBusy && quickKind === 'fees' ? 'Sending…' : 'Fees Due Reminder' }}
+          <AppButton v-if="school.hasModule('payment')" variant="ghost" :loading="quickBusy && quickKind === 'fees'" @click="runQuickAlert('fees')">
+            Fees Due Reminder
           </AppButton>
-          <AppButton variant="ghost" :disabled="quickBusy" @click="runQuickAlert('absent')">
-            {{ quickBusy && quickKind === 'absent' ? 'Sending…' : 'Absent Alert (today)' }}
+          <AppButton v-if="school.hasModule('attendance')" variant="ghost" :loading="quickBusy && quickKind === 'absent'" @click="runQuickAlert('absent')">
+            Absent Alert (today)
           </AppButton>
         </div>
         <p v-if="quickResult" class="success">{{ quickResult }}</p>
@@ -107,7 +116,10 @@
                   <span class="muted">{{ guardianPhoneOf(s) || 'no phone' }}</span>
                 </button>
               </li>
-              <li v-if="singleMatches.length === 0" class="muted roster__row">No one found.</li>
+              <li v-if="studentsLoading && singleMatches.length === 0">
+                <AppSkeleton variant="list" :rows="4" />
+              </li>
+              <li v-else-if="singleMatches.length === 0" class="muted roster__row">No one found.</li>
             </ul>
             <p v-if="singleStudent" class="picked">Picked: <strong>{{ singleStudent.name }}</strong> ({{ audiencePhoneLabel(singleStudent) }})</p>
           </template>
@@ -138,7 +150,10 @@
                   <span>{{ s.name }} <span class="muted">· Roll {{ s.roll }} · {{ classNameOf(s.classId) }}</span></span>
                 </label>
               </li>
-              <li v-if="multiMatches.length === 0" class="muted roster__row">No one found.</li>
+              <li v-if="studentsLoading && multiMatches.length === 0">
+                <AppSkeleton variant="list" :rows="4" />
+              </li>
+              <li v-else-if="multiMatches.length === 0" class="muted roster__row">No one found.</li>
             </ul>
             <p v-else class="muted">Type a name / roll / phone above, then tick.</p>
           </template>
@@ -202,7 +217,10 @@
                   </label>
                   <span class="muted">{{ audiencePhoneLabel(s) }}</span>
                 </li>
-                <li v-if="filteredGroupRoster.length === 0" class="muted roster__row">No one matches this filter.</li>
+                <li v-if="studentsLoading && filteredGroupRoster.length === 0">
+                  <AppSkeleton variant="list" :rows="4" />
+                </li>
+                <li v-else-if="filteredGroupRoster.length === 0" class="muted roster__row">No one matches this filter.</li>
               </ul>
             </div>
           </template>
@@ -246,8 +264,8 @@
           </div>
           <p v-if="sendError" class="error">{{ sendError }}</p>
           <p v-if="sendResult" class="success">{{ sendResult }}</p>
-          <AppButton type="submit" :disabled="sendingGeneral">
-            {{ sendingGeneral ? 'Sending…' : `Send (${generalRecipients.length})` }}
+          <AppButton type="submit" :loading="sendingGeneral">
+            Send ({{ generalRecipients.length }})
           </AppButton>
         </form>
         <form v-else-if="sendMode === 'exam' && school.hasModule('exam_result')" class="form" @submit.prevent="sendExamSms">
@@ -300,7 +318,7 @@
           </div>
           <p v-if="examSmsError" class="error">{{ examSmsError }}</p>
           <p v-if="examSmsResult" class="success">{{ examSmsResult }}</p>
-          <AppButton type="submit" :disabled="sendingExam">{{ sendingExam ? 'Sending…' : 'Send Result SMS' }}</AppButton>
+          <AppButton type="submit" :loading="sendingExam">Send Result SMS</AppButton>
         </form>
         <form v-else-if="sendMode === 'teachers' && school.hasModule('staff')" class="form" @submit.prevent="sendTeacherSms">
           <p class="muted">All teachers with a phone number — teacher-only message.</p>
@@ -343,8 +361,8 @@
           </div>
           <p v-if="teacherSmsError" class="error">{{ teacherSmsError }}</p>
           <p v-if="teacherSmsResult" class="success">{{ teacherSmsResult }}</p>
-          <AppButton type="submit" :disabled="sendingTeacher">
-            {{ sendingTeacher ? 'Sending…' : `Send (${teacherSelected.length})` }}
+          <AppButton type="submit" :loading="sendingTeacher">
+            Send ({{ teacherSelected.length }})
           </AppButton>
         </form>
       </AppCard>
@@ -358,7 +376,8 @@
           <RouterLink v-if="canManageTemplates" to="/super-admin/sms" class="link-btn">super admin (SMS Control)</RouterLink>
           <span v-else>super admin</span>.
         </p>
-        <ul class="list">
+        <AppSkeleton v-if="tplLoading" variant="list" :rows="3" />
+        <ul v-else class="list">
           <li v-for="t in templates" :key="t.id" class="list__row">
             <div>
               <strong>{{ t.name }}</strong>
@@ -390,9 +409,9 @@
         <FilterPanel>
           <input v-model="histSearch" class="app-input__control" placeholder="Search recipient / phone / exam / message…" />
         </FilterPanel>
-        <p v-if="logsLoading" class="muted">Loading…</p>
+        <AppSkeleton v-if="logsLoading" variant="table" :rows="8" :cols="7" />
         <div v-else class="table-scroll">
-          <table class="table">
+          <table class="table" :class="{ 'is-fetching': logFetching && !logsLoading }">
             <thead>
               <tr><th>Recipient</th><th>Phone</th><th>Template</th><th>Exam</th><th>Message</th><th>Status</th><th>Sent at</th></tr>
             </thead>
@@ -402,9 +421,10 @@
                 <td>{{ l.phone || '—' }}</td>
                 <td>{{ l.templateName }}</td>
                 <td>
-                  <RouterLink v-if="l.examId" :to="`/admin/exams/${l.examId}`" class="link-btn" :title="`Open ${l.examName}`">
+                  <RouterLink v-if="l.examId && school.hasModule('exam_result')" :to="`/admin/exams/${l.examId}`" class="link-btn" :title="`Open ${l.examName}`">
                     {{ l.examName || `Exam ${l.examId}` }}
                   </RouterLink>
+                  <span v-else-if="l.examId" class="muted">{{ l.examName || `Exam ${l.examId}` }}</span>
                   <span v-else class="muted">—</span>
                 </td>
                 <td class="msg">
@@ -423,7 +443,7 @@
             </tbody>
           </table>
         </div>
-        <AppPagination v-model:page="page" v-model:per-page="perPage" :total="filteredLogs.length" />
+        <AppPagination v-model:page="page" v-model:per-page="perPage" :total="filteredLogs.length" :busy="logFetching" />
       </AppCard>
     </div>
   </div>
@@ -434,7 +454,9 @@ import { computed, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
+import { useDebouncedRef } from '@/composables/useDebouncedRef'
 import { usePagedList } from '@/composables/usePagedList'
 import {
   useAttendanceDay,
@@ -473,7 +495,7 @@ const tabs = [
 ] as const
 const activeTab = ref<'overview' | 'send' | 'templates' | 'history'>('overview')
 
-const { data: balanceData } = useSmsBalance()
+const { data: balanceData, isLoading: balanceLoading } = useSmsBalance()
 const balance = computed(() => balanceData.value?.data)
 const usedPct = computed(() => {
   const b = balance.value
@@ -481,13 +503,13 @@ const usedPct = computed(() => {
   return Math.min(100, Math.round((b.used / b.total) * 100))
 })
 
-const { data: tplData } = useSmsTemplates()
+const { data: tplData, isLoading: tplLoading } = useSmsTemplates()
 const templates = computed(() => tplData.value?.data ?? [])
 const { data: classData } = useClasses()
 const classes = computed(() => classData.value?.data ?? [])
 
 // ---------- overview: delivery snapshot (client-side counts, coaching pattern) ----------
-const { data: allLogsData } = useSmsLogs({})
+const { data: allLogsData, isLoading: allLogsLoading } = useSmsLogs({})
 const allLogs = computed(() => allLogsData.value?.data ?? [])
 const statusCounts = computed(() => {
   const c = { sent: 0, failed: 0, pending: 0 }
@@ -499,13 +521,13 @@ const statusCounts = computed(() => {
 })
 
 // ---------- overview: quick alerts ----------
-const { data: studentsData } = useStudents({ perPage: 500 })
+const { data: studentsData, isLoading: studentsLoading } = useStudents({ perPage: 500 })
 const students = computed(() => studentsData.value?.data.items ?? [])
 const studentMap = computed(() => new Map(students.value.map((s) => [s.id, s])))
-const { data: duesData } = useDues()
+const { data: duesData } = useDues(() => school.hasModule('payment'))
 const dues = computed(() => (duesData.value?.data ?? []) as { id: string; dueAmount: number }[])
 const todayIso = new Date().toISOString().slice(0, 10)
-const { data: dayData } = useAttendanceDay(todayIso)
+const { data: dayData } = useAttendanceDay(todayIso, () => school.hasModule('attendance'))
 const absentToday = computed(() => (dayData.value?.data ?? []).filter((r) => r.status === 'absent'))
 
 const { mutateAsync: sendBulk, isPending: quickBusy } = useSendBulkSms()
@@ -684,7 +706,7 @@ function excludeAllGroup(): void {
 }
 
 // Teachers roster (audience teachers/all)
-const { data: teachersData } = useTeachers({ perPage: 500 })
+const { data: teachersData } = useTeachers({ perPage: 500 }, () => school.hasModule('staff'))
 const teacherRoster = computed(() =>
   ((teachersData.value?.data.items ?? []) as { id: string; name: string; phone: string; designation: string }[]).filter(
     (t) => (t.phone || '').trim(),
@@ -871,7 +893,7 @@ async function sendGeneral(): Promise<void> {
 // Pick a specific published exam → that exam's class roster → each guardian
 // gets their own child's result vars in the message. Unpublished exams are not listed.
 const sendMode = ref<'general' | 'exam' | 'teachers'>('general')
-const { data: examsData } = useExams({ perPage: 500 })
+const { data: examsData } = useExams({ perPage: 500 }, () => school.hasModule('exam_result'))
 const allExams = computed(() => examsData.value?.data.items ?? [])
 const publishedExams = computed(() => allExams.value.filter((e) => e.status === 'published'))
 const heldBackExams = computed(() => allExams.value.filter((e) => e.status !== 'published').length)
@@ -987,11 +1009,12 @@ async function sendExamSms(): Promise<void> {
 // ---------- history: chips + search + expand (coaching pattern) ----------
 const histStatus = ref('')
 const histSearch = ref('')
+const histSearchDebounced = useDebouncedRef(histSearch, 300)
 const histParams = computed(() => ({
   status: histStatus.value || undefined,
-  search: histSearch.value.trim() || undefined,
+  search: histSearchDebounced.value.trim() || undefined,
 }))
-const { data: logData, isLoading: logsLoading } = useSmsLogs(histParams)
+const { data: logData, isLoading: logsLoading, isFetching: logFetching } = useSmsLogs(histParams)
 const logs = computed(() => logData.value?.data ?? [])
 const statusChips = computed(() => [
   { key: '', label: 'All', count: allLogs.value.length },
@@ -1067,6 +1090,7 @@ function formatTime(iso: string): string {
 }
 .main-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-xs);
   margin-bottom: var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
@@ -1089,6 +1113,7 @@ function formatTime(iso: string): string {
 }
 .mode-row {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-xs);
   margin-bottom: var(--spacing-md);
 }
@@ -1146,15 +1171,18 @@ function formatTime(iso: string): string {
   justify-content: space-between;
   align-items: center;
   gap: var(--spacing-sm);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-sm);
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
+  min-height: 40px;
 }
 .roster__check {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-sm);
   cursor: pointer;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .roster__check input {
   width: 18px;

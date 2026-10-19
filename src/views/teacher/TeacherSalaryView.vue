@@ -1,18 +1,22 @@
 <template>
   <div class="page">
     <h1 class="page__title">My Salary</h1>
-    <p v-if="meLoading" class="muted">Loading…</p>
+    <div v-if="meLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="!teacher" class="error">
       No teacher/staff profile is linked to this login. Ask the admin to link one from Users.
     </p>
     <template v-else>
       <div class="stat-grid">
-        <AppCard><p class="stat-label">Total Received</p><p class="stat-value">৳{{ totalPaid }}</p></AppCard>
-        <AppCard><p class="stat-label">Pending</p><p class="stat-value">৳{{ totalPending }}</p></AppCard>
-        <AppCard><p class="stat-label">Last Payment</p><p class="stat-value">{{ lastPayment }}</p></AppCard>
+        <AppCard><p class="stat-label">Total Received</p><AppSkeleton v-if="salariesLoading" variant="text" width="72px" /><p v-else class="stat-value">৳{{ totalPaid }}</p></AppCard>
+        <AppCard><p class="stat-label">Pending</p><AppSkeleton v-if="salariesLoading" variant="text" width="72px" /><p v-else class="stat-value">৳{{ totalPending }}</p></AppCard>
+        <AppCard><p class="stat-label">Last Payment</p><AppSkeleton v-if="salariesLoading" variant="text" width="72px" /><p v-else class="stat-value">{{ lastPayment }}</p></AppCard>
       </div>
       <AppCard title="Salary History">
-        <div class="table-scroll">
+        <AppSkeleton v-if="salariesLoading" variant="table" :rows="6" :cols="7" />
+        <div v-else class="table-scroll">
           <table class="table">
             <thead>
               <tr><th>Month</th><th>Basic</th><th>Allowance</th><th>Deduction</th><th>Net</th><th>Status</th><th>Paid on</th></tr>
@@ -43,13 +47,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useMyTeacher, useSalaries } from '@/composables/useQueries'
 
 const { data: meData, isLoading: meLoading } = useMyTeacher()
 const teacher = computed(() => meData.value?.data)
 const teacherId = computed(() => teacher.value?.id ?? '')
 
-const { data: salariesData } = useSalaries()
+const { data: salariesData, isLoading: salariesLoading } = useSalaries()
 const mySalaries = computed(() =>
   (salariesData.value?.data ?? []).filter((s) => s.teacherId === teacherId.value),
 )

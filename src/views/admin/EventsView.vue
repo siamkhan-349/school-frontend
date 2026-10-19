@@ -21,7 +21,7 @@
           <option value="parents">Parents</option>
         </select>
       </FilterPanel>
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="isLoading" variant="list" :rows="3" />
       <ul v-else class="events">
         <li v-for="e in paged" :key="e.id" class="event">
           <div>
@@ -35,11 +35,13 @@
             <button v-if="e.status === 'draft'" class="link-btn" type="button" @click="askPublish(e)">
               Publish
             </button>
-            <button v-if="e.status === 'published'" class="link-btn" type="button" @click="setStatus(e.id, 'archived')">
-              Archive
+            <button v-if="e.status === 'published'" class="link-btn" type="button" :disabled="rowBusyId === e.id" @click="setStatus(e.id, 'archived')">
+              <AppSpinner v-if="rowBusyId === e.id" size="sm" label="Working" />
+              <template v-else>Archive</template>
             </button>
-            <button v-if="e.status === 'archived'" class="link-btn" type="button" @click="setStatus(e.id, 'draft')">
-              Restore
+            <button v-if="e.status === 'archived'" class="link-btn" type="button" :disabled="rowBusyId === e.id" @click="setStatus(e.id, 'draft')">
+              <AppSpinner v-if="rowBusyId === e.id" size="sm" label="Working" />
+              <template v-else>Restore</template>
             </button>
             <button class="link-btn" type="button" @click="openEdit(e)">Edit</button>
             <button class="link-btn link-btn--danger" type="button" @click="askDelete(e.id, e.title)">
@@ -76,7 +78,7 @@
               <label>Audience
                 <select v-model="form.audience" class="app-input__control">
                   <option value="all">All</option>
-                  <option value="teachers">Teachers</option>
+                  <option v-if="school.hasModule('staff')" value="teachers">Teachers</option>
                   <option value="parents">Parents</option>
                 </select>
               </label>
@@ -84,7 +86,7 @@
             <p v-if="formError" class="error">{{ formError }}</p>
             <div class="form-actions">
               <AppButton variant="ghost" type="button" @click="form.open = false">Cancel</AppButton>
-              <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : form.id ? 'Save' : 'Create' }}</AppButton>
+              <AppButton type="submit" :loading="saving">{{ form.id ? 'Save' : 'Create' }}</AppButton>
             </div>
           </form>
         </div>
@@ -103,14 +105,17 @@
       <div v-if="pubAsk.open" class="modal-backdrop" @click.self="pubAsk.open = false">
         <div class="modal">
           <h3 class="modal__title">Publish "{{ pubAsk.title }}"?</h3>
-          <p class="modal__hint">Notify the audience by SMS as well? (Guardians for students/parents, teachers for teachers.)</p>
+          <p class="modal__hint">Notify the audience by SMS as well? (Guardians for students/parents{{ school.hasModule('staff') ? ', teachers for teachers' : '' }}.)</p>
+          <p v-if="pubAsk.audience === 'teachers' && !school.hasModule('staff')" class="muted">
+            Teachers audience needs the Teachers &amp; Staff module — SMS is off; publish only.
+          </p>
           <div class="form-actions">
             <AppButton variant="ghost" :disabled="publishing" @click="pubAsk.open = false">Cancel</AppButton>
-            <AppButton variant="ghost" :disabled="publishing" @click="doPublish(false)">
-              {{ publishing ? 'Working…' : 'Publish only' }}
+            <AppButton variant="ghost" :loading="publishing" @click="doPublish(false)">
+              Publish only
             </AppButton>
-            <AppButton :disabled="publishing" @click="doPublish(true)">
-              {{ publishing ? 'Sending…' : 'Publish with SMS' }}
+            <AppButton :loading="publishing" :disabled="pubAsk.audience === 'teachers' && !school.hasModule('staff')" @click="doPublish(true)">
+              Publish with SMS
             </AppButton>
           </div>
         </div>
@@ -125,6 +130,8 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import { usePagedList } from '@/composables/usePagedList'
 import {
@@ -139,9 +146,11 @@ import {
   useUpdateEvent,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import type { SchoolEvent } from '@/types/models'
 
 const toast = useToast()
+const school = useSchoolStore()
 const { data, isLoading } = useEvents()
 const events = computed(() => data.value?.data ?? [])
 
@@ -232,12 +241,16 @@ async function save(): Promise<void> {
 }
 
 const { mutateAsync: changeStatus } = useEventStatus()
+const rowBusyId = ref<string | null>(null)
 async function setStatus(id: string, status: SchoolEvent['status']): Promise<void> {
+  rowBusyId.value = id
   try {
     await changeStatus({ id, status })
     toast.success(`Notice ${status}`)
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Failed')
+  } finally {
+    rowBusyId.value = null
   }
 }
 
@@ -261,7 +274,7 @@ const { data: tplData } = useSmsTemplates()
 const noticeTemplate = computed(() => (tplData.value?.data ?? []).find((t) => t.name === 'Notice Published'))
 const { data: studentsData } = useStudents({ perPage: 500 })
 const studentIds = computed(() => (studentsData.value?.data.items ?? []).map((s) => s.id))
-const { data: teachersData } = useTeachers({ perPage: 500 })
+const { data: teachersData } = useTeachers({ perPage: 500 }, () => school.hasModule('staff'))
 const teacherPhones = computed(() =>
   ((teachersData.value?.data.items ?? []) as { id: string; phone: string }[])
     .filter((t) => (t.phone || '').trim())
@@ -344,10 +357,15 @@ async function doPublish(withSms: boolean): Promise<void> {
 .event {
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
   padding: var(--spacing-md) 0;
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
+}
+.event > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .chip {
   display: inline-block;

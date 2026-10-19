@@ -34,6 +34,9 @@ export const scannerStatus = ref('ready')
  * there so the two systems never double-handle one punch. */
 export const staffScanMode = ref(false)
 
+/** True while a reader tap POST is in flight — shells show a tiny spinner. */
+export const scannerPending = ref(false)
+
 const INTERACTIVE = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'])
 
 function tapErrorMessage(error: unknown): string {
@@ -55,7 +58,14 @@ function tapErrorMessage(error: unknown): string {
 export function useCardScanner() {
   const qc = useQueryClient()
   const { mutate } = useMutation({
-    mutationFn: (cardId: string) => attendanceService.tap(cardId),
+    mutationFn: async (cardId: string) => {
+      scannerPending.value = true
+      try {
+        return await attendanceService.tap(cardId)
+      } finally {
+        scannerPending.value = false
+      }
+    },
     // Feedback lives in the topbar status only — no toast (reader fires
     // all day; toasts would bury real messages).
     onSuccess: (res, cardId) => {

@@ -326,17 +326,20 @@ export function studentsPdf(opts: {
   schoolName: string
   filterNote: string
   rows: { name: string; roll: string; classLabel: string; dept: string; due: number; status: string }[]
+  /** Fees module off → the Due column is dropped from the export too. */
+  showDue?: boolean
 }): void {
   const doc = new jsPDF()
+  const showDue = opts.showDue !== false
   const startY = addLetterhead(doc, opts.schoolName, 'Students List', `${opts.filterNote}  |  Students: ${opts.rows.length}`)
   autoTable(doc, {
     startY,
-    head: [['SL', 'Name', 'Roll', 'Class', 'Dept', 'Due (Tk)', 'Status']],
-    body: opts.rows.map((r, i) => [String(i + 1), r.name, r.roll, r.classLabel, r.dept, fmt(r.due), r.status]),
+    head: [['SL', 'Name', 'Roll', 'Class', 'Dept', ...(showDue ? ['Due (Tk)'] : []), 'Status']],
+    body: opts.rows.map((r, i) => [String(i + 1), r.name, r.roll, r.classLabel, r.dept, ...(showDue ? [fmt(r.due)] : []), r.status]),
     theme: 'grid',
     headStyles: { fillColor: [30, 64, 175] },
     styles: { fontSize: 8 },
-    columnStyles: { 0: { halign: 'center' }, 5: { halign: 'right' } },
+    columnStyles: showDue ? { 0: { halign: 'center' }, 5: { halign: 'right' } } : { 0: { halign: 'center' } },
   })
   addSignatures(doc, (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY)
   addFooters(doc)

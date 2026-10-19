@@ -1,17 +1,27 @@
 <template>
-  <div class="pager">
+  <nav class="pager" :class="{ 'pager--busy': busy }" aria-label="Pagination" :aria-busy="busy || undefined">
     <div class="pager__meta">
-      <span class="pager__info">{{ rangeStart }}–{{ rangeEnd }} of {{ total }}</span>
+      <span class="pager__info" aria-live="polite">{{ infoText }}</span>
       <label class="pager__size">
         <span class="pager__size-label">Rows per page</span>
-        <select :value="perPage" class="pager__size-select" @change="onPageSizeChange">
+        <select
+          :value="perPage"
+          class="pager__size-select"
+          :disabled="busy"
+          @change="onPageSizeChange"
+        >
           <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
         </select>
       </label>
     </div>
 
     <div v-if="showControls" class="pager__controls">
-      <button class="pager__btn" type="button" :disabled="page <= 1" @click="goTo(page - 1)">
+      <button
+        class="pager__btn"
+        type="button"
+        :disabled="busy || page <= 1"
+        @click="goTo(page - 1)"
+      >
         ‹ Prev
       </button>
 
@@ -23,17 +33,23 @@
           class="pager__page"
           :class="{ 'pager__page--active': item === page }"
           :aria-current="item === page ? 'page' : undefined"
+          :disabled="busy"
           @click="goTo(item)"
         >
           {{ item }}
         </button>
       </template>
 
-      <button class="pager__btn" type="button" :disabled="page >= totalPages" @click="goTo(page + 1)">
+      <button
+        class="pager__btn"
+        type="button"
+        :disabled="busy || page >= totalPages"
+        @click="goTo(page + 1)"
+      >
         Next ›
       </button>
     </div>
-  </div>
+  </nav>
 </template>
 
 <script setup lang="ts">
@@ -45,9 +61,11 @@ const props = withDefaults(
     page: number
     perPage: number
     total: number
+    /** True while the page data is (re)fetching — dims and locks the pager. */
+    busy?: boolean
     pageSizeOptions?: readonly number[]
   }>(),
-  { pageSizeOptions: () => PAGE_SIZE_OPTIONS },
+  { busy: false, pageSizeOptions: () => PAGE_SIZE_OPTIONS },
 )
 const emit = defineEmits<{
   'update:page': [page: number]
@@ -74,6 +92,11 @@ const pages = computed<Array<number | '...'>>(() => {
 
 const rangeStart = computed(() => (props.total === 0 ? 0 : (props.page - 1) * props.perPage + 1))
 const rangeEnd = computed(() => Math.min(props.page * props.perPage, props.total))
+
+// During a first load total is 0 — "0–0 of 0" would read as real data.
+const infoText = computed(() =>
+  props.busy && props.total === 0 ? '…' : `${rangeStart.value}–${rangeEnd.value} of ${props.total}`,
+)
 
 // Rows-per-page stays visible even on one page: hiding it strands the user
 // on a big page size with no way back except a reload.
@@ -120,7 +143,7 @@ function onPageSizeChange(event: Event): void {
   white-space: nowrap;
 }
 .pager__size-select {
-  height: 32px;
+  height: 36px;
   padding: 0 var(--spacing-xs);
   font-family: inherit;
   font-size: var(--font-size-sm);
@@ -130,6 +153,10 @@ function onPageSizeChange(event: Event): void {
   border-radius: var(--radius-md);
   cursor: pointer;
 }
+.pager__size-select:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
 .pager__controls {
   display: flex;
   align-items: center;
@@ -137,7 +164,7 @@ function onPageSizeChange(event: Event): void {
   gap: var(--spacing-xs);
 }
 .pager__btn {
-  height: 32px;
+  height: 36px;
   padding: 0 var(--spacing-md);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
@@ -151,8 +178,8 @@ function onPageSizeChange(event: Event): void {
   cursor: not-allowed;
 }
 .pager__page {
-  min-width: 32px;
-  height: 32px;
+  min-width: 36px;
+  height: 36px;
   padding: 0 var(--spacing-sm);
   font-family: inherit;
   font-size: var(--font-size-sm);
@@ -170,6 +197,13 @@ function onPageSizeChange(event: Event): void {
   color: var(--color-primary-contrast);
   background: var(--color-primary);
   border-color: var(--color-primary);
+}
+.pager--busy {
+  opacity: 0.65;
+}
+.pager--busy .pager__controls,
+.pager--busy .pager__size {
+  pointer-events: none;
 }
 .pager__ellipsis {
   padding: 0 var(--spacing-xs);

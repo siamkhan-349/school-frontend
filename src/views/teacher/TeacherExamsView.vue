@@ -12,7 +12,7 @@
     </AppCard>
 
     <template v-else-if="!selectedId">
-      <p v-if="listLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="listLoading" variant="table" :rows="8" :cols="6" />
       <p v-else-if="listErrorMessage" class="error">{{ listErrorMessage }}</p>
       <p v-else-if="exams.length === 0" class="muted">
         No exams with your subjects yet. The admin creates exams and assigns teachers from the exam page.
@@ -46,7 +46,11 @@
     </template>
 
     <template v-else>
-      <p v-if="detailLoading" class="muted">Loading…</p>
+      <div v-if="detailLoading" class="sk-stack">
+        <AppSkeleton variant="lines" :lines="2" />
+        <AppSkeleton variant="card" />
+        <AppSkeleton variant="card" />
+      </div>
       <p v-else-if="!exam" class="error">Exam not found.</p>
       <template v-else>
         <div class="meta-row">
@@ -114,7 +118,7 @@
               <p v-if="cfgError" class="error">{{ cfgError }}</p>
               <div class="form-actions">
                 <AppButton v-if="isConfigured(activeSubject)" variant="ghost" type="button" :disabled="savingCfg" @click="editing = false">Cancel</AppButton>
-                <AppButton type="submit" :disabled="savingCfg">{{ savingCfg ? 'Saving…' : 'Save Setup' }}</AppButton>
+                <AppButton type="submit" :loading="savingCfg">Save Setup</AppButton>
               </div>
             </form>
             <div v-else class="setup-done">
@@ -189,8 +193,8 @@
               </div>
               <div class="marks-actions">
                 <span class="muted">{{ rows.length }} students</span>
-                <AppButton :disabled="locked || savingMarks || rows.length === 0" @click="saveMarksForSubject">
-                  {{ savingMarks ? 'Saving…' : 'Save Marks' }}
+                <AppButton :disabled="locked || rows.length === 0" :loading="savingMarks" @click="saveMarksForSubject">
+                  Save Marks
                 </AppButton>
               </div>
             </template>
@@ -205,6 +209,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import {
   useClasses,
   useSaveTeacherMarks,
@@ -504,8 +509,8 @@ async function saveMarksForSubject(): Promise<void> {
   max-width: 84px;
 }
 .absent-check {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   accent-color: var(--color-danger);
   cursor: pointer;
 }

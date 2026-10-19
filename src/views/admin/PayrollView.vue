@@ -32,7 +32,7 @@
       </AppCard>
       <div class="grid">
         <AppCard title="Saved Sheets" class="full-row">
-          <p v-if="salLoading" class="muted">Loading…</p>
+          <AppSkeleton v-if="salLoading" variant="table" :rows="8" :cols="5" />
           <table v-else class="table">
             <thead>
               <tr><th>Period</th><th>Sheets</th><th>Total Net (৳)</th><th>Paid</th><th></th></tr>
@@ -69,9 +69,9 @@
       <AppCard v-else :title="`Step 2 — Mark attendance (${staffDate})`">
         <div class="step-actions">
           <AppButton variant="ghost" type="button" @click="attStep = 1">← Change date</AppButton>
-          <AppButton :disabled="staffSaving" @click="saveStaff">{{ staffSaving ? 'Saving…' : `Save ${staffDate}` }}</AppButton>
+          <AppButton :loading="staffSaving" @click="saveStaff">Save {{ staffDate }}</AppButton>
         </div>
-        <p v-if="staffLoading" class="muted">Loading…</p>
+        <AppSkeleton v-if="staffLoading" variant="table" :rows="8" :cols="5" />
         <table v-else class="table">
           <thead>
             <tr><th>Name</th><th>Designation</th><th>Status</th><th>Entry</th><th>Exit</th></tr>
@@ -114,7 +114,7 @@
         </table>
         <div class="step-actions step-actions--bottom">
           <AppButton variant="ghost" type="button" @click="attStep = 1">← Change date</AppButton>
-          <AppButton :disabled="staffSaving" @click="saveStaff">{{ staffSaving ? 'Saving…' : `Save ${staffDate}` }}</AppButton>
+          <AppButton :loading="staffSaving" @click="saveStaff">Save {{ staffDate }}</AppButton>
         </div>
       </AppCard>
     </template>
@@ -122,7 +122,7 @@
     <!-- Leaves -->
     <template v-else-if="tab === 'leaves'">
       <AppCard title="Leave Requests">
-        <p v-if="leaveLoading" class="muted">Loading…</p>
+        <AppSkeleton v-if="leaveLoading" variant="table" :rows="8" :cols="6" />
         <table v-else class="table">
           <thead>
             <tr><th>Teacher</th><th>Type</th><th>From → To</th><th>Days</th><th>Status</th><th></th></tr>
@@ -137,8 +137,14 @@
               <td class="row-actions-cell">
                 <span class="row-actions">
                 <template v-if="l.status === 'pending'">
-                  <button class="link-btn" type="button" @click="decide(l.id, 'approved')">Approve</button>
-                  <button class="link-btn link-btn--danger" type="button" @click="decide(l.id, 'rejected')">Reject</button>
+                  <button class="link-btn" type="button" :disabled="leaveBusyId === l.id" @click="decide(l.id, 'approved')">
+                    <AppSpinner v-if="leaveBusyId === l.id" size="sm" label="Working" />
+                    <template v-else>Approve</template>
+                  </button>
+                  <button class="link-btn link-btn--danger" type="button" :disabled="leaveBusyId === l.id" @click="decide(l.id, 'rejected')">
+                    <AppSpinner v-if="leaveBusyId === l.id" size="sm" label="Working" />
+                    <template v-else>Reject</template>
+                  </button>
                 </template>
                 </span>
               </td>
@@ -158,6 +164,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import {
   useLeaves,
@@ -234,12 +242,16 @@ function openMonthSheetOf(year: number, month: number): void {
 const { data: leaveData, isLoading: leaveLoading } = useLeaves()
 const leaves = computed(() => leaveData.value?.data ?? [])
 const { mutateAsync: setLeaveStatus } = useLeaveStatus()
+const leaveBusyId = ref<string | null>(null)
 async function decide(id: string, status: LeaveStatus): Promise<void> {
+  leaveBusyId.value = id
   try {
     await setLeaveStatus({ id, status })
     toast.success(`Leave ${status}`)
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Failed')
+  } finally {
+    leaveBusyId.value = null
   }
 }
 
@@ -311,6 +323,7 @@ async function saveStaff(): Promise<void> {
 }
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-md);
 }
@@ -436,6 +449,7 @@ async function saveStaff(): Promise<void> {
 }
 .month-row {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   align-items: flex-end;
 }
@@ -455,6 +469,12 @@ async function saveStaff(): Promise<void> {
   gap: var(--spacing-xs);
   font-size: var(--font-size-sm);
   min-width: 120px;
+}
+@media (max-width: 640px) {
+  .month-row label {
+    min-width: 0;
+    flex: 1 1 132px;
+  }
 }
 .hint {
   font-size: var(--font-size-xs);

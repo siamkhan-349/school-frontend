@@ -8,8 +8,14 @@
     </div>
 
     <div class="chips">
-      <span class="chip">{{ assignedCount }} assigned</span>
-      <span class="chip chip--warn">{{ unassignedCount }} missing</span>
+      <span class="chip">
+        <AppSkeleton v-if="assignedLoading" variant="chip" :width="'88px'" />
+        <template v-else>{{ assignedCount }} assigned</template>
+      </span>
+      <span class="chip chip--warn">
+        <AppSkeleton v-if="missingLoading" variant="chip" :width="'88px'" />
+        <template v-else>{{ unassignedCount }} missing</template>
+      </span>
     </div>
 
     <AppCard>
@@ -26,9 +32,9 @@
         </select>
       </FilterPanel>
 
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="5" />
       <p v-else-if="isError" class="error">Failed to load students.</p>
-      <div v-else class="table-block">
+      <div v-else class="table-block" :class="{ 'is-fetching': isFetching && !isLoading }">
       <table class="table">
         <thead>
           <tr><th>Name</th><th>Roll</th><th>Class</th><th>Card ID</th><th></th></tr>
@@ -57,7 +63,10 @@
                   type="button"
                   :disabled="savingId === s.id"
                   @click="removeCard(s.id, s.name)"
-                >{{ savingId === s.id ? 'Removing…' : 'Remove' }}</button>
+                >
+                  <AppSpinner v-if="savingId === s.id" size="sm" label="Working" />
+                  <template v-else>Remove</template>
+                </button>
               </span>
             </td>
           </tr>
@@ -68,7 +77,7 @@
       </table>
       </div>
 
-      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" />
+      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" :busy="isFetching" />
     </AppCard>
 
     <Teleport to="body">
@@ -89,9 +98,7 @@
           <p v-if="formError" class="error">{{ formError }}</p>
           <div class="modal__actions">
             <AppButton variant="ghost" type="button" @click="cancelEdit">Cancel</AppButton>
-            <AppButton type="button" :disabled="saving" @click="saveCard">
-              {{ saving ? 'Saving…' : 'Save' }}
-            </AppButton>
+            <AppButton type="button" :loading="saving" @click="saveCard">Save</AppButton>
           </div>
         </div>
       </div>
@@ -104,6 +111,8 @@ import { computed, nextTick, reactive, ref, useTemplateRef, watch } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
 import { useClasses, useStudents, useUpdateStudent } from '@/composables/useQueries'
@@ -129,13 +138,13 @@ const params = computed(() => ({
   perPage: perPage.value,
 }))
 
-const { data, isLoading, isError } = useStudents(params)
+const { data, isLoading, isFetching, isError } = useStudents(params)
 const rows = computed(() => data.value?.data.items ?? [])
 const total = computed(() => data.value?.data.pagination.total ?? 0)
 
 // Summary chips need both sides regardless of the active filter.
-const { data: assignedData } = useStudents({ hasCard: 'yes', perPage: 1 })
-const { data: missingData } = useStudents({ hasCard: 'no', perPage: 1 })
+const { data: assignedData, isLoading: assignedLoading } = useStudents({ hasCard: 'yes', perPage: 1 })
+const { data: missingData, isLoading: missingLoading } = useStudents({ hasCard: 'no', perPage: 1 })
 const assignedCount = computed(() => assignedData.value?.data.pagination.total ?? 0)
 const unassignedCount = computed(() => missingData.value?.data.pagination.total ?? 0)
 
@@ -256,6 +265,9 @@ async function removeCard(id: string, name: string): Promise<void> {
   border-collapse: collapse;
   font-size: var(--font-size-sm);
   table-layout: fixed;
+  /* Locked columns (64+92+220+168) must leave the name column room —
+     below 760px the fixed layout collapsed the name to ~0px. */
+  min-width: 760px;
 }
 .table th,
 .table td {

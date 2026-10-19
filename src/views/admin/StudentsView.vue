@@ -3,8 +3,8 @@
     <div class="page__head">
       <h1 class="page__title">Students</h1>
       <div class="page__actions">
-        <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportCsv">{{ exporting ? 'Loading…' : 'CSV' }}</AppButton>
-        <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportPdf">{{ exporting ? 'Loading…' : 'PDF' }}</AppButton>
+        <AppButton variant="ghost" type="button" :disabled="total === 0" :loading="exporting" @click="exportCsv">CSV</AppButton>
+        <AppButton variant="ghost" type="button" :disabled="total === 0" :loading="exporting" @click="exportPdf">PDF</AppButton>
         <AppButton v-if="canManage" variant="ghost" type="button" @click="goImport">Import</AppButton>
         <AppButton @click="goAdmit">+ Admit Student</AppButton>
       </div>
@@ -12,7 +12,7 @@
 
     <AppCard>
       <FilterPanel>
-        <input v-model="filters.search" class="app-input__control" placeholder="Search name / roll / card…" />
+        <input v-model="filters.search" class="app-input__control" :placeholder="school.hasModule('attendance') ? 'Search name / roll / card…' : 'Search name / roll…'" />
         <select v-model="filters.gender" class="app-input__control">
           <option value="">All genders</option>
           <option value="male">Male</option>
@@ -42,18 +42,18 @@
           <option value="">Set status…</option>
           <option v-for="o in STUDENT_STATUS_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
-        <AppButton type="button" :disabled="!bulkStatus || bulkBusy" @click="applyBulkStatus">
-          {{ bulkBusy ? 'Saving…' : 'Apply' }}
+        <AppButton type="button" :disabled="!bulkStatus" :loading="bulkBusy" @click="applyBulkStatus">
+          Apply
         </AppButton>
         <button class="link-btn" type="button" @click="selected = []">Clear</button>
       </div>
 
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="school.hasModule('payment') ? 8 : 7" />
       <p v-else-if="isError" class="error">Failed to load students.</p>
-      <div v-else class="table-scroll">
+      <div v-else class="table-scroll" :class="{ 'is-fetching': isFetching && !isLoading }">
       <table class="table">
         <thead>
-          <tr><th class="select-col"><input type="checkbox" :checked="allChecked" :disabled="rows.length === 0" @change="toggleAll" /></th><th>Name</th><th>Roll</th><th>Class</th><th>Dept</th><th>Due (৳)</th><th>Status</th><th></th></tr>
+          <tr><th class="select-col"><input type="checkbox" :checked="allChecked" :disabled="rows.length === 0" @change="toggleAll" /></th><th>Name</th><th>Roll</th><th>Class</th><th>Dept</th><th v-if="school.hasModule('payment')">Due (৳)</th><th>Status</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="s in rows" :key="s.id">
@@ -67,7 +67,7 @@
             <td>{{ s.roll }}</td>
             <td>{{ classLabel(s.classId) }}</td>
             <td>{{ deptLabel(s.departmentId) }}</td>
-            <td>{{ s.dueAmount }}</td>
+            <td v-if="school.hasModule('payment')">{{ s.dueAmount }}</td>
             <td><span class="chip">{{ studentStatusLabel(s.status) }}</span></td>
             <td class="row-actions-cell">
               <span class="row-actions">
@@ -78,13 +78,13 @@
             </td>
           </tr>
           <tr v-if="rows.length === 0">
-            <td colspan="8" class="muted">No students yet — use + Admit Student to add the first one.</td>
+            <td :colspan="school.hasModule('payment') ? 8 : 7" class="muted">No students yet — use + Admit Student to add the first one.</td>
           </tr>
         </tbody>
       </table>
       </div>
 
-      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" />
+      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" :busy="isFetching" />
     </AppCard>
 
     <!-- Edit lives on its own page: /admin/students/:id/edit -->
@@ -106,6 +106,7 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
 import {
@@ -119,6 +120,7 @@ import {
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
+import { useSchoolStore } from '@/stores/school'
 import { downloadCsv, studentsPdf } from '@/utils/pdf'
 import { STUDENT_STATUS_OPTIONS, studentStatusLabel } from '@/utils/studentStatus'
 import { studentService } from '@/services'
@@ -126,6 +128,7 @@ import type { Student, StudentStatus } from '@/types/models'
 
 const toast = useToast()
 const auth = useAuthStore()
+const school = useSchoolStore()
 const canDelete = computed(() => auth.can('admin.students.delete'))
 const canManage = computed(() => auth.can('admin.students.manage'))
 const filters = reactive({ search: '', gender: '', classId: '', sectionId: '', departmentId: '' })
@@ -148,7 +151,7 @@ const params = computed(() => ({
   perPage: perPage.value,
 }))
 
-const { data, isLoading, isError } = useStudents(params)
+const { data, isLoading, isFetching, isError } = useStudents(params)
 const rows = computed(() => data.value?.data.items ?? [])
 const total = computed(() => data.value?.data.pagination.total ?? 0)
 
@@ -250,10 +253,12 @@ async function exportCsv(): Promise<void> {
   exporting.value = true
   try {
     const all = await fetchAllFiltered()
+    // Fees module off → leave the Due column out of the export as well.
+    const showDue = school.hasModule('payment')
     downloadCsv(
       `students-${Date.now()}.csv`,
-      ['SL', 'Name', 'Roll', 'Class', 'Dept', 'Phone', 'Guardian', 'Due (Tk)', 'Status'],
-      all.map((s, i) => [i + 1, s.name, String(s.roll ?? ''), classLabel(s.classId), deptLabel(s.departmentId), s.phone || '', s.guardianName || '', Number(s.dueAmount) || 0, studentStatusLabel(s.status)]),
+      ['SL', 'Name', 'Roll', 'Class', 'Dept', 'Phone', 'Guardian', ...(showDue ? ['Due (Tk)'] : []), 'Status'],
+      all.map((s, i) => [i + 1, s.name, String(s.roll ?? ''), classLabel(s.classId), deptLabel(s.departmentId), s.phone || '', s.guardianName || '', ...(showDue ? [Number(s.dueAmount) || 0] : []), studentStatusLabel(s.status)]),
     )
     toast.success(`${all.length} students exported`)
   } catch (e) {
@@ -269,6 +274,7 @@ async function exportPdf(): Promise<void> {
     studentsPdf({
       schoolName: schoolName.value,
       filterNote: filterNote(),
+      showDue: school.hasModule('payment'),
       rows: all.map((s) => ({
         name: s.name,
         roll: String(s.roll ?? ''),
@@ -319,6 +325,7 @@ async function doDelete(): Promise<void> {
 }
 .page__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   align-items: center;
 }

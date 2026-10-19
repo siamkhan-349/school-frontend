@@ -8,7 +8,10 @@
       </div>
     </div>
 
-    <p v-if="loading" class="muted">Loading…</p>
+    <div v-if="loading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="table" :rows="6" :cols="6" />
+    </div>
     <p v-else-if="!exam || !student || !row" class="error">Record not found.</p>
     <div v-else class="sheet">
       <header class="sheet__head">
@@ -22,21 +25,23 @@
         <div><dt>Class</dt><dd>{{ classLabel }}</dd></div>
         <div><dt>Exam Date</dt><dd>{{ exam.examDate }}</dd></div>
       </dl>
-      <table class="table">
-        <thead>
-          <tr><th>Subject</th><th>CQ</th><th>MCQ</th><th>Total</th><th>Grade</th><th>Status</th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="s in row.subjects" :key="s.subjectId">
-            <td>{{ s.name }}</td>
-            <td>{{ showCq(s) }}</td>
-            <td>{{ showMcq(s) }}</td>
-            <td>{{ s.total }}/{{ s.full }}</td>
-            <td>{{ s.grade }}</td>
-            <td>{{ s.absent ? 'Absent' : s.passed ? 'Pass' : 'Fail' }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr><th>Subject</th><th>CQ</th><th>MCQ</th><th>Total</th><th>Grade</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="s in row.subjects" :key="s.subjectId">
+              <td>{{ s.name }}</td>
+              <td>{{ showCq(s) }}</td>
+              <td>{{ showMcq(s) }}</td>
+              <td>{{ s.total }}/{{ s.full }}</td>
+              <td>{{ s.grade }}</td>
+              <td>{{ s.absent ? 'Absent' : s.passed ? 'Pass' : 'Fail' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <dl class="kv">
         <div><dt>Total</dt><dd>{{ row.total }}/{{ fullMarks }}</dd></div>
         <div><dt>Percentage</dt><dd>{{ row.percentage }}%</dd></div>
@@ -52,6 +57,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useClasses, useExam, useExamResults, useSettings, useStudent } from '@/composables/useQueries'
 import { printWithTitle } from '@/utils/print'
 import { reportCardPdf } from '@/utils/pdf'
@@ -123,10 +129,13 @@ function downloadPdf(): void {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
   margin-bottom: var(--spacing-lg);
 }
 .report__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
 }
 .back {

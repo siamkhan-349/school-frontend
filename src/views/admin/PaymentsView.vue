@@ -3,8 +3,8 @@
     <div class="page__head">
       <h1 class="page__title">Payment History</h1>
       <div class="page__actions">
-        <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportCsv">{{ exporting ? 'Loading…' : 'CSV' }}</AppButton>
-        <AppButton variant="ghost" type="button" :disabled="exporting || total === 0" @click="exportPdf">{{ exporting ? 'Loading…' : 'PDF' }}</AppButton>
+        <AppButton variant="ghost" type="button" :disabled="total === 0" :loading="exporting" @click="exportCsv">CSV</AppButton>
+        <AppButton variant="ghost" type="button" :disabled="total === 0" :loading="exporting" @click="exportPdf">PDF</AppButton>
         <RouterLink to="/admin/fees/collect" class="link-btn">+ Collect</RouterLink>
         <RouterLink to="/admin/payments/bulk" class="link-btn">Bulk import</RouterLink>
       </div>
@@ -24,8 +24,8 @@
         <input v-model="to" type="date" class="app-input__control" />
         <AppButton variant="ghost" type="button" @click="resetFilters">Reset</AppButton>
       </FilterPanel>
-      <p v-if="isLoading" class="muted">Loading…</p>
-      <table v-else class="table">
+      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="8" />
+      <table v-else class="table" :class="{ 'is-fetching': isFetching && !isLoading }">
         <thead>
           <tr><th>Receipt</th><th>Student</th><th>Fee</th><th><button class="sort-btn" type="button" @click="toggleOrder('amount')">Amount{{ orderArrow('amount') }}</button></th><th>Paid</th><th>Method</th><th><button class="sort-btn" type="button" @click="toggleOrder('payment_date')">Date{{ orderArrow('payment_date') }}</button></th><th></th></tr>
         </thead>
@@ -49,7 +49,7 @@
         </tbody>
       </table>
 
-      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" />
+      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" :busy="isFetching" />
     </AppCard>
 
     <AppConfirmDialog
@@ -68,8 +68,10 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import { useDeletePayment, usePayments, useSettings } from '@/composables/useQueries'
+import { useDebouncedRef } from '@/composables/useDebouncedRef'
 import { usePagedList } from '@/composables/usePagedList'
 import { useToast } from '@/composables/useToast'
 import { receiptTypeLabel, receiptTypeTitle } from '@/utils/paymentLabels'
@@ -85,7 +87,10 @@ const status = ref('')
 const from = ref('')
 const to = ref('')
 const ordering = ref('-payment_date')
-watch([search, feeType, status, from, to], () => {
+// Typing fires a request per keystroke otherwise — debounce text inputs.
+const searchDebounced = useDebouncedRef(search, 300)
+const feeTypeDebounced = useDebouncedRef(feeType, 300)
+watch([searchDebounced, feeTypeDebounced, status, from, to], () => {
   page.value = 1
 })
 
@@ -119,8 +124,8 @@ function typeTitle(p: Payment): string {
 }
 
 const params = computed(() => ({
-  search: search.value || undefined,
-  feeType: feeType.value || undefined,
+  search: searchDebounced.value || undefined,
+  feeType: feeTypeDebounced.value || undefined,
   status: status.value || undefined,
   from: from.value || undefined,
   to: to.value || undefined,
@@ -128,7 +133,7 @@ const params = computed(() => ({
   page: page.value,
   perPage: perPage.value,
 }))
-const { data, isLoading } = usePayments(params)
+const { data, isLoading, isFetching } = usePayments(params)
 const rows = computed(() => data.value?.data.items ?? [])
 const total = computed(() => data.value?.data.pagination.total ?? 0)
 
@@ -143,8 +148,8 @@ const exporting = ref(false)
 // Export covers ALL filtered receipts (backend caps at 500 per call).
 async function fetchAllFiltered(): Promise<Payment[]> {
   const res = await paymentService.list({
-    search: search.value || undefined,
-    feeType: feeType.value || undefined,
+    search: searchDebounced.value || undefined,
+    feeType: feeTypeDebounced.value || undefined,
     status: status.value || undefined,
     from: from.value || undefined,
     to: to.value || undefined,
@@ -229,6 +234,7 @@ async function doDelete(): Promise<void> {
 }
 .page__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
 }
 .muted {

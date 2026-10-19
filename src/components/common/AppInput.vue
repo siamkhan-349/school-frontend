@@ -4,6 +4,7 @@
     <span class="app-field__wrap">
       <input
         class="app-input__control app-field__input"
+        :class="{ 'app-field__input--password': type === 'password' }"
         :value="modelValue"
         :placeholder="placeholder"
         :type="type === 'password' && show ? 'text' : type"
@@ -14,8 +15,9 @@
         type="button"
         class="app-field__toggle"
         :title="show ? 'Hide password' : 'Show password'"
-        aria-label="Toggle password visibility"
-        @click="show = !show"
+        :aria-label="show ? 'Hide password' : 'Show password'"
+        :aria-pressed="show"
+        @click.prevent="show = !show"
       >
         <EyeOff v-if="show" :size="18" />
         <Eye v-else :size="18" />
@@ -59,16 +61,19 @@ const show = ref(false)
 .app-field__input {
   width: 100%;
 }
+.app-field__input--password {
+  padding-right: 44px;
+}
 .app-field__toggle {
   position: absolute;
-  right: 6px;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
   border: none;
   border-radius: var(--radius-md);
   background: transparent;

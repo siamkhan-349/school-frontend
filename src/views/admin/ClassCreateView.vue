@@ -3,7 +3,7 @@
     <div class="page__head">
       <div>
         <h1 class="page__title">Add Class</h1>
-        <p class="page__hint">Class name → hours → sections → departments. Subjects and fees are added from the class page after saving. It lands at the bottom — drag rows on the Academic Setup table to reorder.</p>
+        <p class="page__hint">{{ school.hasModule('payment') ? 'Class name → hours → sections → departments. Subjects and fees are added from the class page after saving. It lands at the bottom — drag rows on the Academic Setup table to reorder.' : 'Class name → hours → sections → departments. Subjects are added from the class page after saving. It lands at the bottom — drag rows on the Academic Setup table to reorder.' }}</p>
       </div>
       <AppButton variant="ghost" type="button" @click="goBack">← Academic Setup</AppButton>
     </div>
@@ -20,7 +20,7 @@
           <label>Start<input v-model="form.startTime" type="time" class="app-input__control" /></label>
           <label>End<input v-model="form.endTime" type="time" class="app-input__control" /></label>
         </div>
-        <p class="hint">Late cutoff for this class's attendance taps and limit for its class routine periods. Blank = school-wide timings from Settings. (PG/Nursery shifts apatoto ekhane ek time — shift layer pore.)</p>
+        <p class="hint">{{ hoursHint }}</p>
       </AppCard>
 
       <AppCard title="Sections">
@@ -42,16 +42,32 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import { useCreateClass } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 
 const router = useRouter()
 const toast = useToast()
+const school = useSchoolStore()
 const { mutateAsync: createClass } = useCreateClass()
+
+/** Hours tooltip only names the modules that are on — no dead references. */
+const hoursHint = computed(() => {
+  const attendance = school.hasModule('attendance')
+  const routine = school.hasModule('routine')
+  const what = attendance && routine
+    ? "Late cutoff base for this class's attendance taps and limit for its class routine periods"
+    : attendance
+      ? "Late cutoff base for this class's attendance taps"
+      : routine
+        ? 'Limit for this class routine periods'
+        : 'Class timing'
+  return `${what}. Blank = school-wide timings from Settings.`
+})
 
 const form = reactive({
   label: '',
@@ -94,7 +110,7 @@ async function saveForm(): Promise<void> {
       startTime: form.startTime,
       endTime: form.endTime,
     })
-    toast.success('Class created — add subjects and fees from here')
+    toast.success(school.hasModule('payment') ? 'Class created — add subjects and fees from here' : 'Class created — add subjects from here')
     await router.push(`/admin/academics/${created.data.id}`)
   } catch (e) {
     formError.value = e instanceof Error ? e.message : 'Failed'
@@ -107,9 +123,11 @@ async function saveForm(): Promise<void> {
 <style scoped>
 .hours-row {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
 }
 .hours-row .app-input__control {
-  width: 140px;
+  width: 100%;
+  max-width: 140px;
 }
 </style>

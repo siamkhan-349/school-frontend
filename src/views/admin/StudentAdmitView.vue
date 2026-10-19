@@ -3,7 +3,7 @@
     <div class="page__head">
       <div>
         <h1 class="page__title">Admit Student</h1>
-        <p class="page__hint">Identity → details → class &amp; fees. The total comes automatically from Fee Management.</p>
+        <p class="page__hint">{{ school.hasModule('payment') ? 'Identity → details → class & fees. The total comes automatically from Fee Management.' : 'Identity → details → class.' }}</p>
       </div>
       <AppButton variant="ghost" type="button" @click="goBack">← Students</AppButton>
     </div>
@@ -44,7 +44,7 @@
             <input v-model="form.roll" class="app-input__control" placeholder="e.g. 10" />
             <span v-if="errors.roll" class="field-error">{{ errors.roll }}</span>
           </label>
-          <label>Card ID (optional)
+          <label v-if="school.hasModule('attendance')">Card ID (optional)
             <input v-model="form.cardId" class="app-input__control" placeholder="e.g. RFID card number" />
             <span v-if="errors.cardId" class="field-error">{{ errors.cardId }}</span>
           </label>
@@ -102,7 +102,14 @@
         </div>
         <div v-if="form.classId" class="subjects-preview">
           <p class="subjects-preview__title">Subjects ({{ form.selectedSubjects.length }}/{{ previewCount }}) — tick what the student will study</p>
-          <template v-if="previewCount > 0">
+          <template v-if="subjectsFetching">
+            <div class="chip-row">
+              <AppSkeleton variant="chip" :width="'96px'" />
+              <AppSkeleton variant="chip" :width="'96px'" />
+              <AppSkeleton variant="chip" :width="'96px'" />
+            </div>
+          </template>
+          <template v-else-if="previewCount > 0">
             <div v-if="commonSubjects.length" class="chip-row">
               <label v-for="s in commonSubjects" :key="s.id" class="checkbox-item" :class="{ 'checkbox-item--checked': form.selectedSubjects.includes(s.label) }">
                 <input type="checkbox" :value="s.label" v-model="form.selectedSubjects" />
@@ -131,8 +138,9 @@
         </div>
       </AppCard>
 
-      <AppCard title="Fees">
-        <div v-if="catalogNonEmpty.length" class="breakdown">
+      <AppCard v-if="school.hasModule('payment')" title="Fees">
+        <AppSkeleton v-if="catalogFetching" variant="lines" :lines="3" />
+        <div v-else-if="catalogNonEmpty.length" class="breakdown">
           <label v-for="item in catalogNonEmpty" :key="item.id" class="breakdown__row" :class="{ 'breakdown__row--off': !checkedFees.has(itemKey(item)) }">
             <span class="checkline">
               <input type="checkbox" :checked="checkedFees.has(itemKey(item))" @change="toggleFee(item)" />
@@ -160,7 +168,7 @@
       <div class="form-actions">
         <AppButton v-if="currentStep > 1" variant="ghost" type="button" :disabled="saving" @click="prevStep">Back</AppButton>
         <AppButton v-if="currentStep < steps.length" type="button" :disabled="saving" @click="nextStep">Next</AppButton>
-        <AppButton v-else type="submit" :disabled="saving">{{ saving ? 'Admitting…' : 'Admit Student' }}</AppButton>
+        <AppButton v-else type="submit" :loading="saving">Admit Student</AppButton>
         <AppButton variant="ghost" type="button" @click="goBack">Cancel</AppButton>
       </div>
     </form>
@@ -183,6 +191,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import {
   useClasses,
   useCreateStudent,
@@ -192,11 +201,13 @@ import {
   useSubjects,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import { studentService } from '@/services'
 import type { FeeCatalogItem } from '@/types/models'
 
 const router = useRouter()
 const toast = useToast()
+const school = useSchoolStore()
 
 const { data: classData } = useClasses()
 const classes = computed(() => classData.value?.data ?? [])
@@ -286,7 +297,7 @@ watch(visibleSubjectLabels, (labels) => {
 // has departments (merged common + dept). Each fee is ticked by default;
 // untick to skip it for this student. The total is the live sum of ticked
 // fees. Nothing is collected here — payment happens on the Collect page.
-const { data: admitCatalogData, isFetching: catalogFetching } = useFeeCatalog(() => form.classId, () => form.departmentId, true)
+const { data: admitCatalogData, isFetching: catalogFetching } = useFeeCatalog(() => form.classId, () => form.departmentId, true, () => school.hasModule('payment'))
 const catalogItems = computed(() => (admitCatalogData.value?.data ?? []).filter((r) => r.isActive))
 const catalogNonEmpty = computed(() => catalogItems.value.filter((r) => (Number(r.amount) || 0) > 0))
 function itemKey(item: FeeCatalogItem): string {
@@ -330,11 +341,11 @@ function admitFeeDues(): { name: string; amount: number; dueFor: string; feeItem
 
 const errors = reactive<Record<string, string>>({})
 
-const steps = [
+const steps = computed(() => [
   { number: 1, label: 'Student Identity' },
   { number: 2, label: 'Details' },
-  { number: 3, label: 'Admission & Fees' },
-]
+  { number: 3, label: school.hasModule('payment') ? 'Admission & Fees' : 'Admission' },
+])
 const currentStep = ref(1)
 
 function validateIdentity(): boolean {
@@ -354,7 +365,7 @@ function validate(): boolean {
 function nextStep(): void {
   formError.value = ''
   if (currentStep.value === 1 && !validateIdentity()) return
-  if (currentStep.value < steps.length) currentStep.value += 1
+  if (currentStep.value < steps.value.length) currentStep.value += 1
 }
 
 function prevStep(): void {
@@ -372,7 +383,7 @@ function selectStep(target: number): void {
     currentStep.value = 1
     return
   }
-  currentStep.value = Math.min(target, steps.length)
+  currentStep.value = Math.min(target, steps.value.length)
 }
 
 const formError = ref('')
@@ -468,7 +479,12 @@ async function save(): Promise<void> {
       }
     }
     toast.success('Student admitted')
-    askPayment.value = true
+    if (school.hasModule('payment')) {
+      askPayment.value = true
+    } else {
+      // Fees module off — straight to the new student's profile.
+      afterAdmit(false)
+    }
   } catch (e) {
     formError.value = e instanceof Error ? e.message : 'Save failed'
   } finally {
@@ -643,6 +659,7 @@ form {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
+  min-height: 36px;
   padding: 2px var(--spacing-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);

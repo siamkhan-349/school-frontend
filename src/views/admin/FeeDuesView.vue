@@ -12,7 +12,7 @@
       <FilterPanel>
         <input v-model="search" class="app-input__control" placeholder="Search name / roll…" />
       </FilterPanel>
-      <p v-if="duesLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="duesLoading" variant="table" :rows="8" :cols="4" />
       <table v-else class="table">
         <thead>
           <tr><th><button class="sort-btn" type="button" @click="sort.toggle('name')">Student{{ sort.arrow('name') }}</button></th><th>Roll</th><th><button class="sort-btn" type="button" @click="sort.toggle('due')">Due (৳){{ sort.arrow('due') }}</button></th><th></th></tr>
@@ -31,7 +31,7 @@
           </tr>
         </tbody>
       </table>
-      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="sorted.length" />
+      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="sorted.length" :busy="duesLoading" />
     </AppCard>
   </div>
 </template>
@@ -42,6 +42,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import { useDues, useSettings } from '@/composables/useQueries'
 import { useClientSort, usePagedList } from '@/composables/usePagedList'

@@ -9,10 +9,10 @@
     </div>
 
     <div class="cards">
-      <AppCard><p class="stat-label">Opening Balance</p><p class="stat-value">৳{{ fmt(summary?.openingBalance) }}</p></AppCard>
-      <AppCard><p class="stat-label">Total In (period)</p><p class="stat-value stat-value--in">৳{{ fmt(summary?.totalIn) }}</p></AppCard>
-      <AppCard><p class="stat-label">Total Out (period)</p><p class="stat-value stat-value--out">৳{{ fmt(summary?.totalOut) }}</p></AppCard>
-      <AppCard><p class="stat-label">Closing Balance</p><p class="stat-value">৳{{ fmt(summary?.closingBalance ?? summary?.balance) }}</p></AppCard>
+      <AppCard><p class="stat-label">Opening Balance</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value">৳{{ fmt(summary?.openingBalance) }}</p></AppCard>
+      <AppCard><p class="stat-label">Total In (period)</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value stat-value--in">৳{{ fmt(summary?.totalIn) }}</p></AppCard>
+      <AppCard><p class="stat-label">Total Out (period)</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value stat-value--out">৳{{ fmt(summary?.totalOut) }}</p></AppCard>
+      <AppCard><p class="stat-label">Closing Balance</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value">৳{{ fmt(summary?.closingBalance ?? summary?.balance) }}</p></AppCard>
     </div>
 
     <AppCard title="Opening Balance (carry-forward)">
@@ -21,7 +21,7 @@
         <input v-model.number="openingForm.amount" type="number" min="0" step="0.01" class="app-input__control" placeholder="Amount (৳)" required />
         <input v-model="openingForm.date" type="date" class="app-input__control" />
         <input v-model="openingForm.note" class="app-input__control" placeholder="Note, e.g. Cash in hand Jan 1" />
-        <AppButton type="submit" :disabled="savingOpening">{{ savingOpening ? 'Saving…' : 'Save Opening' }}</AppButton>
+        <AppButton type="submit" :loading="savingOpening">Save Opening</AppButton>
       </form>
       <p v-if="openingError" class="error">{{ openingError }}</p>
     </AppCard>
@@ -31,7 +31,8 @@
       <div class="head-cols">
         <div>
           <h4 class="head-col-title head-col-title--in">Income by head</h4>
-          <table class="table">
+          <AppSkeleton v-if="sumLoading" variant="table" :rows="3" :cols="3" />
+          <table v-else class="table">
             <thead><tr><th>Head</th><th>Entries</th><th>Total (৳)</th></tr></thead>
             <tbody>
               <tr v-for="r in incomeByHead" :key="r.head">
@@ -45,7 +46,8 @@
         </div>
         <div>
           <h4 class="head-col-title head-col-title--out">Expense by head</h4>
-          <table class="table">
+          <AppSkeleton v-if="sumLoading" variant="table" :rows="3" :cols="3" />
+          <table v-else class="table">
             <thead><tr><th>Head</th><th>Entries</th><th>Total (৳)</th></tr></thead>
             <tbody>
               <tr v-for="r in expenseByHead" :key="r.head">
@@ -61,20 +63,21 @@
     </AppCard>
 
     <AppCard title="Income / Expense Heads">
-      <p class="muted head-hint">Heads can differ per school — create your own here. These are Accounts-only and unrelated to student fee heads (those live under <RouterLink to="/admin/fees">Fee Management</RouterLink>).</p>
+      <p class="muted head-hint">Heads can differ per school — create your own here. These are Accounts-only<template v-if="school.hasModule('payment')"> and unrelated to student fee heads (those live under <RouterLink to="/admin/fees">Fee Management</RouterLink>)</template>.</p>
       <form class="head-form" @submit.prevent="saveHead">
         <select v-model="headForm.kind" class="app-input__control">
           <option value="income">Income</option>
           <option value="expense">Expense</option>
         </select>
         <input v-model="headForm.name" class="app-input__control" placeholder="New head name, e.g. Donation / Electricity bill" required />
-        <AppButton type="submit" :disabled="savingHead">{{ savingHead ? 'Saving…' : '+ Add Head' }}</AppButton>
+        <AppButton type="submit" :loading="savingHead">+ Add Head</AppButton>
       </form>
       <p v-if="headFormError" class="error">{{ headFormError }}</p>
       <div class="head-cols">
         <div>
           <h4 class="head-col-title">Income heads</h4>
-          <ul class="head-list">
+          <AppSkeleton v-if="allHeadsLoading" variant="list" :rows="3" />
+          <ul v-else class="head-list">
             <li v-for="h in incomeHeads" :key="h.id">
               <span>{{ h.name }}</span>
               <button class="link-btn link-btn--danger" type="button" @click="removeHead(h.id, h.name)">Delete</button>
@@ -84,7 +87,8 @@
         </div>
         <div>
           <h4 class="head-col-title">Expense heads</h4>
-          <ul class="head-list">
+          <AppSkeleton v-if="allHeadsLoading" variant="list" :rows="3" />
+          <ul v-else class="head-list">
             <li v-for="h in expenseHeads" :key="h.id">
               <span>{{ h.name }}</span>
               <button class="link-btn link-btn--danger" type="button" @click="removeHead(h.id, h.name)">Delete</button>
@@ -108,9 +112,9 @@
         <AppButton variant="ghost" type="button" :disabled="!rows.length" @click="exportCsv">CSV</AppButton>
       </FilterPanel>
 
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="6" />
       <p v-else-if="isError" class="error">Failed to load ledger.</p>
-      <table v-else class="table">
+      <table v-else class="table" :class="{ 'is-fetching': isFetching && !isLoading }">
         <thead>
           <tr><th>Date</th><th>Head</th><th>In (৳)</th><th>Out (৳)</th><th>Note</th><th></th></tr>
         </thead>
@@ -145,7 +149,7 @@
           </tr>
         </tfoot>
       </table>
-      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="rows.length" />
+      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="rows.length" :busy="isFetching" />
     </AppCard>
 
     <Teleport to="body">
@@ -171,7 +175,7 @@
             <p v-if="formError" class="error">{{ formError }}</p>
             <div class="form-actions">
               <AppButton variant="ghost" type="button" @click="form.open = false">Cancel</AppButton>
-              <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</AppButton>
+              <AppButton type="submit" :loading="saving">Save</AppButton>
             </div>
           </form>
         </div>
@@ -194,12 +198,15 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import { useCreateLedgerEntry, useCreateLedgerHead, useDeleteLedgerEntry, useDeleteLedgerHead, useLedger, useLedgerHeads, useLedgerSummary } from '@/composables/useQueries'
 import { usePagedList } from '@/composables/usePagedList'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import { downloadCsv } from '@/utils/pdf'
 
+const school = useSchoolStore()
 const toast = useToast()
 const num = (v: unknown): number => Number(v) || 0
 const fmt = (v: unknown): string => num(v).toLocaleString('en-IN')
@@ -216,7 +223,7 @@ const params = computed(() => ({
   from: from.value,
   to: to.value,
 }))
-const { data, isLoading, isError } = useLedger(params)
+const { data, isLoading, isFetching, isError } = useLedger(params)
 const rows = computed(() => data.value?.data ?? [])
 const { page, perPage } = usePagedList(10)
 watch([kindFilter, search, from, to], () => {
@@ -239,7 +246,7 @@ function exportCsv(): void {
 }
 
 const sumParams = computed(() => ({ from: from.value, to: to.value }))
-const { data: sumData } = useLedgerSummary(sumParams)
+const { data: sumData, isLoading: sumLoading } = useLedgerSummary(sumParams)
 const summary = computed(() => sumData.value?.data)
 const incomeByHead = computed(() => (summary.value?.byHead ?? []).filter((r) => r.kind === 'income'))
 const expenseByHead = computed(() => (summary.value?.byHead ?? []).filter((r) => r.kind === 'expense'))
@@ -283,7 +290,7 @@ const { data: headData } = useLedgerHeads(() => form.kind)
 const headOptions = computed(() => headData.value?.data ?? [])
 
 // Heads manager — school-wise custom income/expense heads (separate from fee heads).
-const { data: allHeadsData } = useLedgerHeads()
+const { data: allHeadsData, isLoading: allHeadsLoading } = useLedgerHeads()
 const incomeHeads = computed(() => (allHeadsData.value?.data ?? []).filter((h) => h.kind === 'income'))
 const expenseHeads = computed(() => (allHeadsData.value?.data ?? []).filter((h) => h.kind === 'expense'))
 const headForm = reactive({ kind: 'expense' as 'income' | 'expense', name: '' })
@@ -311,13 +318,7 @@ async function saveHead(): Promise<void> {
   }
 }
 async function removeHead(id: number, name: string): Promise<void> {
-  if (!window.confirm(`Delete head "${name}"?`)) return
-  try {
-    await deleteHead(id)
-    toast.success('Head deleted')
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : 'Failed')
-  }
+  confirm.value = { open: true, kind: 'head', id, message: `Delete head "${name}"?` }
 }
 const formError = ref('')
 const saving = ref(false)
@@ -352,17 +353,32 @@ async function saveEntry(): Promise<void> {
   }
 }
 
-const confirm = ref({ open: false, id: '', message: '' })
+const confirm = ref({
+  open: false,
+  kind: 'entry' as 'entry' | 'head',
+  id: '' as string | number,
+  message: '',
+})
 const deleting = ref(false)
 const { mutateAsync: removeEntry } = useDeleteLedgerEntry()
 function askRemove(id: string, head: string): void {
-  confirm.value = { open: true, id, message: `Delete "${head}" entry? Auto-posted entries cannot be deleted here.` }
+  confirm.value = {
+    open: true,
+    kind: 'entry',
+    id,
+    message: `Delete "${head}" entry? Auto-posted entries cannot be deleted here.`,
+  }
 }
 async function doRemove(): Promise<void> {
   deleting.value = true
   try {
-    await removeEntry(confirm.value.id)
-    toast.success('Entry deleted')
+    if (confirm.value.kind === 'head') {
+      await deleteHead(Number(confirm.value.id))
+      toast.success('Head deleted')
+    } else {
+      await removeEntry(String(confirm.value.id))
+      toast.success('Entry deleted')
+    }
     confirm.value.open = false
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Failed')
@@ -516,7 +532,7 @@ async function doRemove(): Promise<void> {
   gap: var(--spacing-md);
   margin-top: var(--spacing-md);
 }
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .head-cols {
     grid-template-columns: 1fr;
   }

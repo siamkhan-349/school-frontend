@@ -31,4 +31,14 @@ defineProps<{ title?: string }>()
 .app-card__body {
   padding: var(--spacing-lg);
 }
+/* Phones get a tighter card so tables/forms keep usable width. Lives here
+   (scoped) because a global rule loses to this component's scoped rule. */
+@media (max-width: 640px) {
+  .app-card__head {
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+  .app-card__body {
+    padding: var(--spacing-md);
+  }
+}
 </style>

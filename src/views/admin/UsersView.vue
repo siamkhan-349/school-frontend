@@ -27,7 +27,7 @@
           <option value="inactive">Inactive</option>
         </select>
       </FilterPanel>
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="8" />
       <div v-else class="table-scroll">
         <table class="table">
           <thead>
@@ -46,8 +46,9 @@
               <td>{{ u.lastLogin || '—' }}</td>
               <td class="row-actions-cell">
                 <span class="row-actions">
-                  <button class="link-btn" type="button" @click="toggleStatus(u)">
-                    {{ u.status === 'active' ? 'Deactivate' : 'Activate' }}
+                  <button class="link-btn" type="button" :disabled="togglingId === u.id" @click="toggleStatus(u)">
+                    <AppSpinner v-if="togglingId === u.id" size="sm" label="Working" />
+                    <template v-else>{{ u.status === 'active' ? 'Deactivate' : 'Activate' }}</template>
                   </button>
                   <button class="link-btn" type="button" @click="openEdit(u)">Edit</button>
                   <button class="link-btn link-btn--danger" type="button" @click="askDelete(u)">Delete</button>
@@ -70,22 +71,25 @@
           <form class="form" @submit.prevent="save">
             <div v-if="form.role === 'teacher'" class="kids kids--top">
               <span class="kids__label">Linked teacher/staff profile (required — opens their panel)</span>
-              <input v-model="teacherSearch" class="app-input__control" placeholder="Type name / phone / designation…" />
-              <ul v-if="teacherSearch.trim() && !form.teacherId" class="roster__list">
-                <li v-for="t in teacherMatches.slice(0, 20)" :key="t.id" class="roster__row">
-                  <button type="button" class="link-btn" @click="selectTeacher(t)">
-                    {{ t.name }} · {{ t.designation || (t.kind === 'staff' ? 'Staff' : 'Teacher') }} <span class="muted">· {{ t.phone || 'no phone' }}</span>
-                  </button>
-                </li>
-                <li v-if="teacherMatches.length === 0" class="roster__row muted">No match.</li>
-              </ul>
-              <p v-if="selectedTeacher" class="kids__picked">
-                Linked: <strong>{{ selectedTeacher.name }}</strong>
-                <span class="pill" :class="selectedTeacher.kind === 'staff' ? 'pill--accountant' : 'pill--teacher'">{{ selectedTeacher.kind === 'staff' ? 'Staff' : 'Teacher' }}</span>
-                <span class="muted">· {{ selectedTeacher.designation || '—' }}</span>
-                <button type="button" class="link-btn link-btn--danger" @click="clearTeacher">Unlink</button>
-              </p>
-              <p v-else class="muted">Not linked — linking is required for teacher logins.</p>
+              <template v-if="school.hasModule('staff')">
+                <input v-model="teacherSearch" class="app-input__control" placeholder="Type name / phone / designation…" />
+                <ul v-if="teacherSearch.trim() && !form.teacherId" class="roster__list">
+                  <li v-for="t in teacherMatches.slice(0, 20)" :key="t.id" class="roster__row">
+                    <button type="button" class="link-btn" @click="selectTeacher(t)">
+                      {{ t.name }} · {{ t.designation || (t.kind === 'staff' ? 'Staff' : 'Teacher') }} <span class="muted">· {{ t.phone || 'no phone' }}</span>
+                    </button>
+                  </li>
+                  <li v-if="teacherMatches.length === 0" class="roster__row muted">No match.</li>
+                </ul>
+                <p v-if="selectedTeacher" class="kids__picked">
+                  Linked: <strong>{{ selectedTeacher.name }}</strong>
+                  <span class="pill" :class="selectedTeacher.kind === 'staff' ? 'pill--accountant' : 'pill--teacher'">{{ selectedTeacher.kind === 'staff' ? 'Staff' : 'Teacher' }}</span>
+                  <span class="muted">· {{ selectedTeacher.designation || '—' }}</span>
+                  <button type="button" class="link-btn link-btn--danger" @click="clearTeacher">Unlink</button>
+                </p>
+                <p v-else class="muted">Not linked — linking is required for teacher logins.</p>
+              </template>
+              <p v-else class="muted">Editing keeps the current link — managing links needs the Teachers &amp; Staff module.</p>
             </div>
             <div class="form-row">
               <label>Name<input v-model="form.name" class="app-input__control" required placeholder="e.g. Rahim Uddin" /></label>
@@ -95,9 +99,9 @@
               <label>Phone<input v-model="form.phone" class="app-input__control" placeholder="01XXXXXXXXX" /></label>
               <label>Role
                 <select v-model="form.role" class="app-input__control">
-                  <option value="teacher">Teacher / Staff</option>
-                  <option value="accountant">Accountant</option>
-                  <option value="parent">Parent</option>
+                  <option v-for="o in roleChoices" :key="o.value" :value="o.value">{{ o.label }}</option>
+                  <!-- Editing an old login whose panel module is off: keep its role shown. -->
+                  <option v-if="!roleChoices.some((o) => o.value === form.role)" :value="form.role">{{ roleLabel(form.role) }}</option>
                 </select>
               </label>
             </div>
@@ -130,7 +134,7 @@
             <p v-if="formError" class="error">{{ formError }}</p>
             <div class="form-actions">
               <AppButton variant="ghost" type="button" @click="form.open = false">Cancel</AppButton>
-              <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : form.id ? 'Save' : 'Create' }}</AppButton>
+              <AppButton type="submit" :loading="saving">{{ form.id ? 'Save' : 'Create' }}</AppButton>
             </div>
           </form>
         </div>
@@ -153,6 +157,8 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import PasswordInput from '@/components/common/PasswordInput.vue'
 import { usePagedList } from '@/composables/usePagedList'
@@ -165,9 +171,11 @@ import {
   useUpdateAppUser,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import type { AppUser, AppUserRole } from '@/types/models'
 
 const toast = useToast()
+const school = useSchoolStore()
 const roleChips = [
   { key: '', label: 'All' },
   { key: 'teacher', label: 'Teachers / Staff' },
@@ -194,6 +202,18 @@ const paged = computed(() => {
   return filtered.value.slice(start, start + perPage.value)
 })
 
+/** Panels whose module is off cannot be used — hide their role option when
+ * creating a login. Editing keeps an existing login's own role selectable. */
+const roleChoices = computed(() => {
+  const opts: { value: AppUserRole; label: string }[] = []
+  // Teacher logins link a staff profile — offer the role only while both
+  // modules it needs are on.
+  if (school.hasModule('teacher') && school.hasModule('staff')) opts.push({ value: 'teacher', label: 'Teacher / Staff' })
+  if (school.hasModule('accountant')) opts.push({ value: 'accountant', label: 'Accountant' })
+  if (school.hasModule('parent')) opts.push({ value: 'parent', label: 'Parent' })
+  return opts
+})
+
 function roleLabel(role: string): string {
   if (role === 'teacher') return 'Teacher / Staff'
   if (role === 'accountant') return 'Accountant'
@@ -217,7 +237,7 @@ function linkedLabel(u: AppUser): string {
 
 const { data: studentsData } = useStudents({ perPage: 500 })
 const students = computed(() => studentsData.value?.data.items ?? [])
-const { data: teachersData } = useTeachers({ perPage: 500 })
+const { data: teachersData } = useTeachers({ perPage: 500 }, () => school.hasModule('staff'))
 const allTeachers = computed(() => teachersData.value?.data.items ?? [])
 const kidSearch = ref('')
 const teacherSearch = ref('')
@@ -263,6 +283,7 @@ const form = reactive({
 })
 const formError = ref('')
 const saving = ref(false)
+const togglingId = ref<string | null>(null)
 const { mutateAsync: createUser } = useCreateAppUser()
 const { mutateAsync: updateUser } = useUpdateAppUser()
 
@@ -271,7 +292,7 @@ function openNew(): void {
   form.name = ''
   form.username = ''
   form.phone = ''
-  form.role = 'teacher'
+  form.role = roleChoices.value[0]?.value ?? 'parent'
   form.password = ''
   form.children = []
   form.teacherId = ''
@@ -343,6 +364,7 @@ async function save(): Promise<void> {
 }
 
 async function toggleStatus(u: AppUser): Promise<void> {
+  togglingId.value = u.id
   try {
     await updateUser({
       id: u.id,
@@ -351,6 +373,8 @@ async function toggleStatus(u: AppUser): Promise<void> {
     toast.success(u.status === 'active' ? 'User deactivated' : 'User activated')
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Failed')
+  } finally {
+    togglingId.value = null
   }
 }
 
@@ -494,6 +518,7 @@ async function doDelete(): Promise<void> {
   padding: var(--spacing-lg);
   width: min(560px, 100%);
   max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -569,7 +594,7 @@ async function doDelete(): Promise<void> {
   border-radius: var(--radius-md);
 }
 .roster__row {
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-sm);
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
 }
@@ -578,6 +603,7 @@ async function doDelete(): Promise<void> {
   align-items: center;
   gap: var(--spacing-sm);
   cursor: pointer;
+  min-height: 32px;
 }
 .roster__check input {
   width: 18px;

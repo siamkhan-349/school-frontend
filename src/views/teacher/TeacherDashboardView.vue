@@ -1,18 +1,22 @@
 <template>
   <div class="page">
     <h1 class="page__title">Dashboard</h1>
-    <p v-if="meLoading" class="muted">Loading…</p>
+    <div v-if="meLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="!teacher" class="error">
       No teacher/staff profile is linked to this login. Ask the admin to link one from Users.
     </p>
     <template v-else>
       <p class="muted">Welcome, {{ teacher.name }} ({{ teacher.designation || teacher.kind || 'Staff' }})</p>
       <div class="stat-grid">
-        <AppCard><p class="stat-label">Today's Classes</p><p class="stat-value">{{ todayRoutines.length }}</p></AppCard>
-        <AppCard><p class="stat-label">This Week</p><p class="stat-value">{{ myRoutines.length }}</p></AppCard>
-        <AppCard><p class="stat-label">Pending Leaves</p><p class="stat-value">{{ pendingLeaves }}</p></AppCard>
+        <AppCard v-if="school.hasModule('routine')"><p class="stat-label">Today's Classes</p><AppSkeleton v-if="routinesLoading" variant="text" width="40px" /><p v-else class="stat-value">{{ todayRoutines.length }}</p></AppCard>
+        <AppCard v-if="school.hasModule('routine')"><p class="stat-label">This Week</p><AppSkeleton v-if="routinesLoading" variant="text" width="40px" /><p v-else class="stat-value">{{ myRoutines.length }}</p></AppCard>
+        <AppCard v-if="school.hasModule('payroll')"><p class="stat-label">Pending Leaves</p><AppSkeleton v-if="leavesLoading" variant="text" width="40px" /><p v-else class="stat-value">{{ pendingLeaves }}</p></AppCard>
       </div>
-      <AppCard title="Today's Schedule">
+      <AppCard v-if="school.hasModule('routine')" title="Today's Schedule">
         <ul v-if="todayRoutines.length > 0" class="list">
           <li v-for="r in todayRoutines" :key="r.id" class="list__row">
             <div>
@@ -21,6 +25,7 @@
             </div>
           </li>
         </ul>
+        <AppSkeleton v-else-if="routinesLoading" variant="list" :rows="3" />
         <p v-else class="muted">No classes today.</p>
         <RouterLink to="/teacher/schedule" class="link-btn">Full schedule →</RouterLink>
       </AppCard>
@@ -31,13 +36,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useClasses, useLeaves, useMyTeacher, useRoutines } from '@/composables/useQueries'
+import { useSchoolStore } from '@/stores/school'
 import type { WeekDay } from '@/types/models'
+const school = useSchoolStore()
 const { data: meData, isLoading: meLoading } = useMyTeacher()
 const teacher = computed(() => meData.value?.data)
 const teacherId = computed(() => teacher.value?.id ?? '')
 
-const { data: routineData } = useRoutines()
+const { data: routineData, isLoading: routinesLoading } = useRoutines(undefined, undefined, undefined, () => school.hasModule('routine'))
 const myRoutines = computed(() =>
   (routineData.value?.data ?? []).filter(
     (r) => r.status === 'active' && teacherId.value && (r.teacherIds ?? []).includes(teacherId.value),
@@ -51,7 +59,7 @@ const todayRoutines = computed(() =>
     .sort((a, b) => a.startTime.localeCompare(b.startTime)),
 )
 
-const { data: leavesData } = useLeaves()
+const { data: leavesData, isLoading: leavesLoading } = useLeaves(() => school.hasModule('payroll'))
 const pendingLeaves = computed(
   () => (leavesData.value?.data ?? []).filter((l) => l.teacherId === teacherId.value && l.status === 'pending').length,
 )
@@ -76,7 +84,7 @@ const classNameOf = (classId: string): string =>
 }
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: var(--spacing-md);
   margin: var(--spacing-md) 0;
 }

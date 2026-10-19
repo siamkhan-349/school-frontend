@@ -1,7 +1,11 @@
 <template>
   <div class="page">
     <RouterLink to="/admin/students" class="back">‹ Back to students</RouterLink>
-    <p v-if="isLoading" class="muted">Loading…</p>
+    <div v-if="isLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="isError || !student" class="error">Student not found.</p>
     <template v-else>
       <div class="detail-head">
@@ -10,7 +14,7 @@
           <h1 class="page__title">{{ student.name }}</h1>
         </span>
         <div class="detail-head__links">
-          <RouterLink :to="{ path: `/admin/attendance/student/${student.id}`, query: { name: student.name } }" class="edit-link">Attendance history</RouterLink>
+          <RouterLink v-if="school.hasModule('attendance')" :to="{ path: `/admin/attendance/student/${student.id}`, query: { name: student.name } }" class="edit-link">Attendance history</RouterLink>
           <RouterLink :to="`/admin/students/${student.id}/edit`" class="edit-link">Edit</RouterLink>
         </div>
       </div>
@@ -19,7 +23,7 @@
           <dl class="kv">
             <div><dt>Gender</dt><dd class="gender-text">{{ student.gender || '—' }}</dd></div>
             <div><dt>Roll</dt><dd>{{ student.roll }}</dd></div>
-            <div><dt>Card ID</dt><dd>{{ student.cardId || '—' }}</dd></div>
+            <div v-if="school.hasModule('attendance')"><dt>Card ID</dt><dd>{{ student.cardId || '—' }}</dd></div>
             <div><dt>Class</dt><dd>{{ classLabel(student.classId) }}</dd></div>
             <div v-if="student.departmentId"><dt>Department</dt><dd>{{ deptLabel(student.departmentId) }}</dd></div>
             <div><dt>Phone</dt><dd>{{ student.phone || '—' }}</dd></div>
@@ -42,7 +46,7 @@
           </div>
           <p v-else class="muted">No subjects recorded.</p>
         </AppCard>
-        <AppCard title="Fees">
+        <AppCard v-if="school.hasModule('payment')" title="Fees">
           <dl class="kv">
             <div><dt>Total</dt><dd>৳{{ student.totalAmount }}</dd></div>
             <div><dt>Paid</dt><dd>৳{{ student.paidAmount }}</dd></div>
@@ -55,8 +59,8 @@
           </div>
         </AppCard>
       </div>
-      <AppCard title="Payment History">
-        <p v-if="payLoading" class="muted">Loading…</p>
+      <AppCard v-if="school.hasModule('payment')" title="Payment History">
+        <AppSkeleton v-if="payLoading" variant="table" :rows="4" :cols="4" />
         <table v-else class="table">
           <thead>
             <tr><th>Receipt</th><th>Type</th><th>Paid (৳)</th><th>Date</th></tr>
@@ -82,14 +86,17 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
 import { useClasses, useDepartments, useStudent, useStudentPayments } from '@/composables/useQueries'
+import { useSchoolStore } from '@/stores/school'
 import { receiptTypeLabel, receiptTypeTitle } from '@/utils/paymentLabels'
 import { studentStatusLabel } from '@/utils/studentStatus'
 import type { Payment } from '@/types/models'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id ?? ''))
+const school = useSchoolStore()
 
 const { data, isLoading, isError } = useStudent(id)
 const student = computed(() => data.value?.data)
@@ -150,9 +157,12 @@ const feeDueRows = computed(() => {
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
+  min-width: 0;
 }
 .detail-head__id .page__title {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .detail-head__links {
   display: flex;
@@ -210,8 +220,13 @@ const feeDueRows = computed(() => {
 .breakdown__row {
   display: flex;
   justify-content: space-between;
+  gap: var(--spacing-sm);
   border-bottom: 1px solid var(--color-border);
   padding-bottom: var(--spacing-xs);
+}
+.breakdown__row > :first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .due {
   font-weight: var(--font-weight-bold);

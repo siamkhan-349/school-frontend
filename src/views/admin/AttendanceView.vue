@@ -3,7 +3,7 @@
     <div class="page__head">
       <div>
         <h1 class="page__title">Student Attendance</h1>
-        <p class="page__hint">Daily roster with entry/exit times. Teacher attendance lives under Payroll.</p>
+        <p class="page__hint">{{ school.hasModule('payroll') ? 'Daily roster with entry/exit times. Teacher attendance lives under Payroll.' : 'Daily roster with entry/exit times.' }}</p>
       </div>
     </div>
 
@@ -28,8 +28,8 @@
             autocomplete="off"
             @keyup.enter="sendTap()"
           />
-          <AppButton :disabled="tapping || !scanCard.trim()" @click="sendTap">
-            {{ tapping ? 'Marking…' : 'Mark' }}
+          <AppButton :disabled="!scanCard.trim()" :loading="tapping" @click="sendTap">
+            Mark
           </AppButton>
         </div>
         <p v-if="tapMsg" class="tap-ok">{{ tapMsg }}</p>
@@ -79,12 +79,12 @@
         </div>
         <div class="roster-actions">
           <AppButton variant="ghost" @click="markAll('present')">All present</AppButton>
-          <AppButton variant="ghost" :disabled="closingDay" @click="closeDay">
-            {{ closingDay ? 'Closing…' : 'Close day (absent)' }}
+          <AppButton variant="ghost" :loading="closingDay" @click="closeDay">
+            Close day (absent)
           </AppButton>
         </div>
 
-        <p v-if="attLoading" class="muted">Loading…</p>
+        <AppSkeleton v-if="attLoading || studentIsLoading" variant="table" :rows="8" :cols="6" />
         <template v-else>
           <table class="table">
             <thead>
@@ -133,15 +133,16 @@
             </tbody>
           </table>
           <div class="save-bar">
-            <AppButton :disabled="saving || studentRows.length === 0" @click="saveStudent">
-              {{ saving ? 'Saving…' : `Save ${date}` }}
+            <AppButton :disabled="studentRows.length === 0" :loading="saving" @click="saveStudent">
+              Save {{ date }}
             </AppButton>
           </div>
         </template>
       </AppCard>
 
       <AppCard title="Recent Summary">
-        <table class="table">
+        <AppSkeleton v-if="summaryLoading" variant="table" :rows="5" :cols="5" />
+        <table v-else class="table">
           <thead>
             <tr><th>Date</th><th>Present</th><th>Absent</th><th>Late</th><th>Leave</th></tr>
           </thead>
@@ -197,7 +198,7 @@
             PDF
           </AppButton>
         </div>
-        <p v-if="reportLoading" class="muted">Loading…</p>
+        <AppSkeleton v-if="reportLoading" variant="table" :rows="8" :cols="7" />
         <table v-else class="table">
           <thead>
             <tr><th>Student</th><th>Present</th><th>Late</th><th>Absent</th><th>Days</th><th>Attendance</th><th></th></tr>
@@ -225,7 +226,7 @@
             </tr>
           </tbody>
         </table>
-        <AppPagination v-if="!reportLoading" v-model:page="repPage" v-model:per-page="repPerPage" :total="reportRows.length" />
+        <AppPagination v-if="!reportLoading" v-model:page="repPage" v-model:per-page="repPerPage" :total="reportRows.length" :busy="reportLoading" />
       </AppCard>
     </template>
 
@@ -238,6 +239,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import {
   useAttendanceReport,
   useAttendanceSummary,
@@ -252,6 +254,7 @@ import {
   useTapAttendance,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import { usePagedList } from '@/composables/usePagedList'
 import { lastCardTap } from '@/composables/useCardScanner'
 import { attendanceReportPdf } from '@/utils/pdf'
@@ -262,6 +265,7 @@ const today = (): string => new Date().toISOString().slice(0, 10)
 
 const toast = useToast()
 const router = useRouter()
+const school = useSchoolStore()
 
 const mainTab = ref<'mark' | 'report'>('mark')
 
@@ -306,7 +310,7 @@ const listParams = computed(() => ({
   departmentId: departmentId.value ?? undefined,
   perPage: 500,
 }))
-const { data: studentData } = useStudents(listParams)
+const { data: studentData, isLoading: studentIsLoading } = useStudents(listParams)
 const { data: attData, isLoading: attLoading } = useStudentAttendance(
   () => date.value,
   () => classId.value,
@@ -387,7 +391,7 @@ async function saveStudent(): Promise<void> {
   }
 }
 
-const { data: summaryData } = useAttendanceSummary(
+const { data: summaryData, isLoading: summaryLoading } = useAttendanceSummary(
   () => classId.value || undefined,
   () => sectionId.value ?? undefined,
   () => departmentId.value ?? undefined,
@@ -539,6 +543,7 @@ async function closeDay(): Promise<void> {
 }
 .tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-md);
 }
@@ -631,6 +636,7 @@ async function closeDay(): Promise<void> {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
+  min-height: 36px;
   padding: 6px var(--spacing-sm);
   font-family: inherit;
   font-size: var(--font-size-sm);

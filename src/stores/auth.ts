@@ -19,12 +19,46 @@ interface LiveUser {
   username: string
   role: string
 }
+
+/** Backend /me payload → the cached session user (single mapping point). */
+function toAuthUser(me: LiveUser): AuthUser {
+  return {
+    id: String(me.public_id ?? me.id),
+    name: me.name,
+    email: me.username,
+    role: mapLiveRole(me.role),
+  }
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
   const isAuthenticated = computed(() => user.value !== null)
 
   function can(permission: string): boolean {
     return canUsePermission(user.value?.role ?? null, permission)
+  }
+
+  /** Persist the session user (memory + localStorage) in one place. */
+  function cacheUser(next: AuthUser): void {
+    user.value = next
+    try {
+      localStorage.setItem('school.user', JSON.stringify(next))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Re-fetch /me and re-cache. The profile page calls this on mount so an
+   * account rename lands without a fresh login; failures keep the cache.
+   */
+  async function refreshUser(): Promise<void> {
+    try {
+      const me = (await apiClient.get<unknown>('/api/auth/me')) as unknown as LiveUser
+      cacheUser(toAuthUser(me))
+    } catch {
+      /* keep the cached user — the page still renders */
+    }
   }
 
   async function login(identifier: string, password: string): Promise<void> {
@@ -36,18 +70,7 @@ export const useAuthStore = defineStore('auth', () => {
     })) as unknown as { refresh: string; access: string; user: LiveUser }
     saveTokens(loginRes.access, loginRes.refresh)
     const me = (await apiClient.get<unknown>('/api/auth/me')) as unknown as LiveUser
-    const liveUser: AuthUser = {
-      id: String(me.public_id ?? me.id),
-      name: me.name,
-      email: me.username,
-      role: mapLiveRole(me.role),
-    }
-    user.value = liveUser
-    try {
-      localStorage.setItem('school.user', JSON.stringify(liveUser))
-    } catch {
-      /* ignore */
-    }
+    cacheUser(toAuthUser(me))
   }
 
   function tryRestoreSession(): void {
@@ -81,7 +104,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, isAuthenticated, can, login, logout, tryRestoreSession }
+  return { user, isAuthenticated, can, login, refreshUser, logout, tryRestoreSession }
 })
 
 export type { UserRole }

@@ -19,7 +19,7 @@
           </select>
           <input v-model="search" class="app-input__control" placeholder="Search name / body…" />
         </FilterPanel>
-        <p v-if="tplLoading" class="muted">Loading…</p>
+        <AppSkeleton v-if="tplLoading" variant="list" :rows="3" />
         <ul v-else class="list">
           <li v-for="t in filtered" :key="t.id" class="list__row">
             <div>
@@ -63,7 +63,7 @@
               <span class="muted">{{ renderPreview(form.body).length }} chars</span>
             </div>
             <div class="row-btns">
-              <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : editing ? 'Save' : 'Create' }}</AppButton>
+              <AppButton type="submit" :loading="saving">{{ editing ? 'Save' : 'Create' }}</AppButton>
               <AppButton v-if="editing" variant="ghost" type="button" @click="cancelEdit">Cancel</AppButton>
             </div>
           </form>
@@ -99,6 +99,7 @@ import { computed, reactive, ref } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import {
   useCreateSmsTemplate,
@@ -309,6 +310,11 @@ function renderPreview(body: string): string {
   padding: var(--spacing-sm) 0;
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
+  min-width: 0;
+}
+.list__row > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .row-btns {
   display: inline-flex;

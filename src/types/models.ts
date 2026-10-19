@@ -25,6 +25,8 @@ export interface SchoolClass {
   /** Daily school hours "HH:MM" (blank = unset, falls back to school times). */
   startTime: string
   endTime: string
+  /** Grace minutes after start before a tap counts late (null = school-wide grace). */
+  lateMinutes: number | null
 }
 
 /** A department/group inside one class (Science, Arts, Commerce). */
@@ -166,6 +168,10 @@ export interface TeacherInput {
   kind?: 'teacher' | 'staff'
   /** Card / finger-reader ID ("" = none assigned). */
   cardId?: string
+  /** Own base time "HH:MM" (null = school start; per-person staff timing). */
+  baseTime?: string | null
+  /** Own end time "HH:MM" (null = school end; per-person staff timing). */
+  endTime?: string | null
   /** Salary-type master id ("" = Monthly default). */
   payTypeId?: string
   basicSalary?: number
@@ -224,6 +230,10 @@ export interface Teacher {
   kind?: 'teacher' | 'staff'
   /** Card / finger-reader ID ("" = none assigned). */
   cardId?: string
+  /** Own base time "HH:MM" (null = school start). */
+  baseTime?: string | null
+  /** Own end time "HH:MM" (null = school end). */
+  endTime?: string | null
   /** Stored relative path ("" = none). */
   photo?: string
   /** Backend image URL (/media/...) — what <img> loads. */
@@ -271,6 +281,8 @@ export interface StudentAttendance {
   roll?: number | null
   classId: string
   classLabel?: string
+  /** The record's class start "HH:MM" (blank = school start). */
+  classStart?: string
   sectionId: string | null
   date: string
   status: AttendanceStatus
@@ -678,8 +690,14 @@ export interface SchoolSettings {
   /** Daily routine as "HH:MM" (24-hour); blank = not set. Admin-editable. */
   schoolStartTime: string
   schoolEndTime: string
-  /** Tap at/after this is late; blank = start time. Admin-editable. */
+  /** Legacy absolute late cutoff; the live rule is lateMinutes (per class). */
   lateTime: string
+  /** Student late grace minutes (super-admin, Attendance card); classes may override. */
+  lateMinutes: number
+  /** Staff late grace minutes (super-admin, Payroll card); separate from students. */
+  staffLateMinutes: number
+  /** Per-person staff timing: each teacher's own base time counts for late. */
+  staffOwnTimes: boolean
   /** Fresh-card processing minutes (super-admin only, 0 = off). */
   cardCooldownMinutes: number
   /** Weekly holidays as weekday codes, e.g. ["Fri"]. */

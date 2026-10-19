@@ -13,7 +13,8 @@
           <div><dt>Paid</dt><dd>৳{{ child.paidAmount }}</dd></div>
           <div><dt>Due</dt><dd class="due">৳{{ child.dueAmount }}</dd></div>
         </dl>
-        <table class="table">
+        <AppSkeleton v-if="paymentsLoading" variant="table" :rows="4" :cols="4" />
+        <table v-else class="table">
           <thead>
             <tr><th>Receipt</th><th>Type</th><th>Paid (৳)</th><th>Date</th></tr>
           </thead>
@@ -37,6 +38,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import { useStudentPayments, useStudents } from '@/composables/useQueries'
 
@@ -48,7 +50,7 @@ watch(children, (list) => {
 }, { immediate: true })
 
 const child = computed(() => children.value.find((c) => c.id === childId.value))
-const { data: payData } = useStudentPayments(() => childId.value)
+const { data: payData, isLoading: paymentsLoading } = useStudentPayments(() => childId.value)
 const payments = computed(() => payData.value?.data ?? [])
 </script>
 
@@ -92,5 +94,11 @@ const payments = computed(() => payData.value?.data ?? [])
   text-align: left;
   padding: var(--spacing-sm) var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
+}
+@media (max-width: 640px) {
+  .table th,
+  .table td {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
 }
 </style>

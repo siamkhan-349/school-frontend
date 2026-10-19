@@ -3,20 +3,25 @@
     <h1 class="page__title">Parent Dashboard</h1>
     <div class="stat-grid">
       <AppCard title="My Children">
-        <strong class="stat">{{ children.length }}</strong>
+        <AppSkeleton v-if="childrenLoading" variant="text" width="56px" />
+        <strong v-else class="stat">{{ children.length }}</strong>
       </AppCard>
-      <AppCard title="Total Due (৳)">
-        <strong class="stat">{{ totalDue }}</strong>
+      <AppCard v-if="school.hasModule('payment')" title="Total Due (৳)">
+        <AppSkeleton v-if="childrenLoading" variant="text" width="72px" />
+        <strong v-else class="stat">{{ totalDue }}</strong>
       </AppCard>
-      <AppCard title="Published Results">
-        <strong class="stat">{{ publishedCount }}</strong>
+      <AppCard v-if="school.hasModule('exam_result')" title="Published Results">
+        <AppSkeleton v-if="resultsLoading" variant="text" width="56px" />
+        <strong v-else class="stat">{{ publishedCount }}</strong>
       </AppCard>
-      <AppCard title="Upcoming Notices">
-        <strong class="stat">{{ upcomingEvents }}</strong>
+      <AppCard v-if="school.hasModule('notice')" title="Upcoming Notices">
+        <AppSkeleton v-if="eventsLoading" variant="text" width="56px" />
+        <strong v-else class="stat">{{ upcomingEvents }}</strong>
       </AppCard>
     </div>
     <AppCard title="Children">
-      <ul class="list">
+      <AppSkeleton v-if="childrenLoading" variant="list" :rows="3" />
+      <ul v-else class="list">
         <li v-for="c in children" :key="c.id" class="list__row">
           <span class="child-cell">
             <StudentAvatar :photo-url="c.photoUrl" :name="c.name" :gender="c.gender" :size="32" />
@@ -24,7 +29,7 @@
               {{ c.name }} (Roll {{ c.roll }})
             </RouterLink>
           </span>
-          <span class="muted">Due ৳{{ c.dueAmount }}</span>
+          <span v-if="school.hasModule('payment')" class="muted">Due ৳{{ c.dueAmount }}</span>
         </li>
       </ul>
     </AppCard>
@@ -34,17 +39,20 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
 import { useEvents, useParentPublishedResults, useStudents } from '@/composables/useQueries'
+import { useSchoolStore } from '@/stores/school'
 
-const { data: studentData } = useStudents({ perPage: 500 })
+const school = useSchoolStore()
+const { data: studentData, isLoading: childrenLoading } = useStudents({ perPage: 500 })
 const children = computed(() => studentData.value?.data.items ?? [])
 const totalDue = computed(() => children.value.reduce((sum, s) => sum + s.dueAmount, 0))
 
-const { data: resultCount } = useParentPublishedResults()
+const { data: resultCount, isLoading: resultsLoading } = useParentPublishedResults(() => school.hasModule('exam_result'))
 const publishedCount = computed(() => resultCount.value?.count ?? 0)
 
-const { data: eventData } = useEvents()
+const { data: eventData, isLoading: eventsLoading } = useEvents(() => school.hasModule('notice'))
 const upcomingEvents = computed(
   () => (eventData.value?.data ?? []).filter((e) => e.status === 'published').length,
 )
@@ -74,6 +82,8 @@ const upcomingEvents = computed(
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
   padding: var(--spacing-sm) 0;
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
@@ -82,6 +92,8 @@ const upcomingEvents = computed(
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-sm);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .link {
   color: var(--color-primary);

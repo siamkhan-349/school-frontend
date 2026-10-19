@@ -31,6 +31,7 @@ import ResultsView from '@/views/admin/ResultsView.vue'
 import RoutineView from '@/views/admin/RoutineView.vue'
 import RoutineFormView from '@/views/admin/RoutineFormView.vue'
 import SettingsView from '@/views/admin/SettingsView.vue'
+import ProfileView from '@/views/shared/ProfileView.vue'
 import SmsView from '@/views/admin/SmsView.vue'
 import StudentAdmitView from '@/views/admin/StudentAdmitView.vue'
 import StudentCardsView from '@/views/admin/StudentCardsView.vue'
@@ -56,7 +57,7 @@ export const adminRoutes: RouteRecordRaw[] = [
       { path: 'academics/:classId', component: ClassDetailView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'core' } },
       { path: 'students', component: StudentsView, meta: { requiresAuth: true, permission: 'admin.students.view', module: 'core' } },
       { path: 'students/new', component: StudentAdmitView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'core' } },
-      { path: 'students/cards', component: StudentCardsView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'core' } },
+      { path: 'students/cards', component: StudentCardsView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'attendance' } },
       { path: 'students/import', component: StudentImportView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'core' } },
       { path: 'students/:id/edit', component: StudentEditView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'core' } },
       { path: 'students/:id', component: StudentDetailView, meta: { requiresAuth: true, permission: 'admin.students.view', module: 'core' } },
@@ -68,7 +69,7 @@ export const adminRoutes: RouteRecordRaw[] = [
       { path: 'routine/new', component: RoutineFormView, meta: { requiresAuth: true, permission: 'admin.routine.view', module: 'routine' } },
       { path: 'routine/:id/edit', component: RoutineFormView, meta: { requiresAuth: true, permission: 'admin.routine.view', module: 'routine' } },
       { path: 'attendance', component: AttendanceView, meta: { requiresAuth: true, permission: 'admin.attendance.view', module: 'attendance' } },
-      { path: 'attendance/staff-live', component: StaffLiveAttendanceView, meta: { requiresAuth: true, permission: 'admin.attendance.view', module: 'attendance' } },
+      { path: 'attendance/staff-live', component: StaffLiveAttendanceView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'payroll' } },
       { path: 'attendance/student/:id', component: StudentAttendanceDetailView, meta: { requiresAuth: true, permission: 'admin.attendance.view', module: 'attendance' } },
       { path: 'attendance/day/:date', component: AttendanceDayView, meta: { requiresAuth: true, permission: 'admin.attendance.view', module: 'attendance' } },
       { path: 'exams', component: ExamsView, meta: { requiresAuth: true, permission: 'admin.results.view', module: 'exam_result' } },
@@ -94,6 +95,7 @@ export const adminRoutes: RouteRecordRaw[] = [
       { path: 'events', component: EventsView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'notice' } },
       { path: 'reports', component: ReportsView, meta: { requiresAuth: true, permission: 'admin.reports.view', module: 'reports' } },
       { path: 'settings', component: SettingsView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'settings' } },
+      { path: 'profile', component: ProfileView, meta: { requiresAuth: true, permission: 'admin.profile.view' } },
     ],
   },
 ]

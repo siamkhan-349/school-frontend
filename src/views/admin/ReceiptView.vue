@@ -7,7 +7,10 @@
         <AppButton @click="print">Print Receipt</AppButton>
       </div>
     </div>
-    <p v-if="isLoading" class="muted">Loading…</p>
+    <div v-if="isLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="table" :rows="3" :cols="3" />
+    </div>
     <p v-else-if="!payment" class="error">Receipt not found.</p>
     <div v-else class="sheet">
       <header class="sheet__head">
@@ -52,6 +55,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useReceipt, useSettings, useStudent, useStudentPayments } from '@/composables/useQueries'
 import { printWithTitle } from '@/utils/print'
 import { receiptPdf } from '@/utils/pdf'
@@ -211,11 +215,14 @@ function downloadPdf(): void {
 .kv div {
   display: flex;
   justify-content: space-between;
+  gap: var(--spacing-sm);
   border-bottom: 1px solid var(--color-border);
   padding-bottom: var(--spacing-xs);
 }
 .kv dt {
   color: var(--color-text-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .lines {
   width: 100%;

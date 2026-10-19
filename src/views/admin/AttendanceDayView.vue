@@ -27,13 +27,13 @@
           :class="['tab', `tab--${t.key}`, { 'tab--active': status === t.key }]"
           @click="status = t.key"
         >
-          {{ t.label }} ({{ counts[t.key] }})
+          {{ t.label }} (<AppSkeleton v-if="isLoading" variant="chip" :width="'28px'" /><template v-else>{{ counts[t.key] }}</template>)
         </button>
       </div>
       <FilterPanel>
         <input v-model="search" class="app-input__control" placeholder="Search name / roll…" />
       </FilterPanel>
-      <p v-if="isLoading && dayRows.length === 0" class="muted">Loading day sheet…</p>
+      <AppSkeleton v-if="isLoading && dayRows.length === 0" variant="table" :rows="8" :cols="7" />
       <p v-else-if="isError" class="error">Failed to load. <button class="link-btn" type="button" @click="refetch()">Retry</button></p>
       <table v-else class="table">
         <thead>
@@ -56,7 +56,7 @@
           </tr>
         </tbody>
       </table>
-      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="filtered.length" />
+      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="filtered.length" :busy="isFetching" />
     </AppCard>
 
     <AppConfirmDialog
@@ -79,6 +79,7 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import { useAttendanceDay, useSendBulkSms, useSettings, useSmsTemplates } from '@/composables/useQueries'
 import { usePagedList } from '@/composables/usePagedList'
@@ -102,7 +103,7 @@ const status = ref<StatusKey>(
     : 'present',
 )
 
-const { data, isLoading, isError, refetch } = useAttendanceDay(date)
+const { data, isLoading, isFetching, isError, refetch } = useAttendanceDay(date)
 const dayRows = computed(() => data.value?.data ?? [])
 const counts = computed<Record<StatusKey, number>>(() => ({
   present: dayRows.value.filter((r) => r.status === 'present').length,
@@ -141,7 +142,8 @@ const schoolName = computed(() => settingsData.value?.data.schoolName || 'School
 
 // Absent + Late tab: oi date er student der guardian ke SMS.
 // Absent → Absent Alert template (absentDate auto-filled). Late → late minutes
-// computed from entry time, each person messaged with their own time.
+// counted from the class's own start (school start when the class has none),
+// each person messaged with their own time.
 const toast = useToast()
 const { data: tplData } = useSmsTemplates()
 const attendanceTemplates = computed(() => (tplData.value?.data ?? []).filter((t) => t.type === 'attendance'))
@@ -159,8 +161,10 @@ function toMinutes(t: string): number | null {
   if (!m) return null
   return Number(m[1]) * 60 + Number(m[2])
 }
-function lateMinutesOf(entryTime: string): number | null {
-  const start = toMinutes(schoolStart.value)
+/** Minutes past the class's own start (school start when the class has none) —
+ *  matches the tap rule, which counts late from the class's start time too. */
+function lateMinutesOf(entryTime: string, classStart: string): number | null {
+  const start = toMinutes(classStart) ?? toMinutes(schoolStart.value)
   const entry = toMinutes(entryTime)
   if (start == null || entry == null) return null
   return Math.max(0, entry - start)
@@ -194,7 +198,7 @@ async function doDaySms(): Promise<void> {
         recipientType: 'guardian',
         variables: isLate
           ? {
-              lateMinutes: String(lateMinutesOf(s.entryTime || '') ?? ''),
+              lateMinutes: String(lateMinutesOf(s.entryTime || '', s.classStart || '') ?? ''),
               entryTime: s.entryTime || '',
             }
           : undefined,
@@ -255,6 +259,7 @@ function exportPdf(): void {
 }
 .page__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
 }
 .link-btn {
@@ -284,7 +289,7 @@ function exportPdf(): void {
 .tab--active {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--color-primary-contrast);
 }
 .tab--present:not(.tab--active) {
   color: var(--color-success, green);

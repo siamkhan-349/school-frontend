@@ -13,7 +13,7 @@
         </select>
       </FilterPanel>
 
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="6" />
       <table v-else class="table">
         <thead>
           <tr><th>Name</th><th>Date</th><th>Class</th><th>Full/Pass</th><th>Status</th><th></th></tr>
@@ -33,8 +33,9 @@
               <button v-if="e.status !== 'published'" class="link-btn" type="button" @click="askPublish(e.id, e.name)">
                 Publish
               </button>
-              <button v-else class="link-btn" type="button" @click="setStatus(e.id, 'active')">
-                Unpublish
+              <button v-else class="link-btn" type="button" :disabled="statusBusyId === e.id" @click="setStatus(e.id, 'active')">
+                <AppSpinner v-if="statusBusyId === e.id" size="sm" label="Working" />
+                <template v-else>Unpublish</template>
               </button>
               <button class="link-btn link-btn--danger" type="button" @click="askDelete(e.id, e.name)">
                 Delete
@@ -48,7 +49,7 @@
         </tbody>
       </table>
 
-      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" />
+      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="total" :busy="isLoading" />
     </AppCard>
 
     <AppConfirmDialog
@@ -76,6 +77,8 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import PublishExamDialog from '@/components/common/PublishExamDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
@@ -124,6 +127,7 @@ const { mutateAsync: deleteExam } = useDeleteExam()
 // go to the guardian's primary number (via the result template).
 const pubAsk = ref({ open: false, id: '', name: '' })
 const publishing = ref(false)
+const statusBusyId = ref<string | null>(null)
 function askPublish(id: string, name: string): void {
   pubAsk.value = { open: true, id, name }
 }
@@ -157,11 +161,14 @@ async function doPublish(withSms: boolean): Promise<void> {
 }
 
 async function setStatus(id: string, status: ExamStatus): Promise<void> {
+  statusBusyId.value = id
   try {
     await changeStatus({ id, status })
     toast.success(status === 'published' ? 'Result published — parents can now see it' : 'Exam updated')
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Failed')
+  } finally {
+    statusBusyId.value = null
   }
 }
 

@@ -5,7 +5,10 @@
       <RouterLink to="/admin/exams" class="back">‹ All exams</RouterLink>
       <RouterLink :to="`/admin/exams/${examId}/card`" class="back back--accent">Result Card ⎙</RouterLink>
     </div>
-    <p v-if="examLoading" class="muted">Loading…</p>
+    <div v-if="examLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="!exam" class="error">Exam not found.</p>
     <template v-else>
       <div class="page__head">
@@ -19,14 +22,14 @@
           </div>
         </div>
         <div class="head-actions">
-          <AppButton variant="ghost" :disabled="sendingResult || meritRows.length === 0" @click="askResultSms">
-            {{ sendingResult ? 'Sending…' : 'Send Result SMS' }}
+          <AppButton variant="ghost" :disabled="meritRows.length === 0" :loading="sendingResult" @click="askResultSms">
+            Send Result SMS
           </AppButton>
         </div>
       </div>
 
       <AppCard title="Merit List">
-        <p v-if="resultsLoading" class="muted">Loading results…</p>
+        <AppSkeleton v-if="resultsLoading" variant="table" :rows="8" :cols="8" />
         <template v-else>
           <div class="table-scroll">
             <table class="table">
@@ -96,6 +99,7 @@ import { useRoute } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useClasses, useExam, useExamResults, useSendBulkSms, useSmsTemplates } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { buildResultVariables } from '@/utils/resultSms'

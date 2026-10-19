@@ -5,26 +5,32 @@
 
     <div class="stat-grid">
       <AppCard title="Students">
-        <strong class="stat">{{ students.length }}</strong>
+        <AppSkeleton v-if="studentLoading" variant="text" width="72px" />
+        <strong v-else class="stat">{{ students.length }}</strong>
       </AppCard>
       <AppCard v-if="school.hasModule('staff')" title="Teachers">
-        <strong class="stat">{{ teachers.length }}</strong>
+        <AppSkeleton v-if="teacherLoading" variant="text" width="72px" />
+        <strong v-else class="stat">{{ teachers.length }}</strong>
       </AppCard>
-      <AppCard title="Total Dues (৳)">
-        <strong class="stat">{{ totalDues }}</strong>
+      <AppCard v-if="school.hasModule('payment')" title="Total Dues (৳)">
+        <AppSkeleton v-if="studentLoading" variant="text" width="72px" />
+        <strong v-else class="stat">{{ totalDues }}</strong>
       </AppCard>
       <AppCard v-if="school.hasModule('exam_result')" title="Pass Rate (latest published)">
-        <strong class="stat">{{ passRate }}%</strong>
+        <AppSkeleton v-if="examLoading || resultsLoading" variant="text" width="72px" />
+        <strong v-else class="stat">{{ passRate }}%</strong>
       </AppCard>
     </div>
 
     <div class="grid">
       <AppCard title="Students per Class">
-        <Bar v-if="studentsChart" :data="studentsChart" :options="chartOptions" />
+        <AppSkeleton v-if="studentLoading || classLoading" variant="block" :height="'240px'" />
+        <Bar v-else-if="studentsChart" :data="studentsChart" :options="chartOptions" />
         <p v-else class="muted">No data.</p>
       </AppCard>
-      <AppCard title="Dues per Class (৳)">
-        <Bar v-if="duesChart" :data="duesChart" :options="chartOptions" />
+      <AppCard v-if="school.hasModule('payment')" title="Dues per Class (৳)">
+        <AppSkeleton v-if="studentLoading || classLoading" variant="block" :height="'240px'" />
+        <Bar v-else-if="duesChart" :data="duesChart" :options="chartOptions" />
         <p v-else class="muted">No dues.</p>
       </AppCard>
     </div>
@@ -52,7 +58,12 @@
         <input v-model="accTo" type="date" class="app-input__control preset-date" @change="activePreset = 'custom'" />
       </div>
       <p class="muted period-note">{{ periodNote }} <span v-if="accFetching" class="updating">· Updating…</span></p>
-      <p v-if="accLoading && !accSummary" class="muted">Loading accounts…</p>
+      <div v-if="accLoading && !accSummary" class="acc-grid">
+        <AppSkeleton variant="card" />
+        <AppSkeleton variant="card" />
+        <AppSkeleton variant="card" />
+        <AppSkeleton variant="card" />
+      </div>
       <div v-if="accSummary" class="acc-grid" :class="{ 'acc-grid--fetching': accFetching }">
         <div class="acc-card"><p class="acc-label">Opening Balance</p><p class="acc-value">৳{{ fmt(accSummary.openingBalance) }}</p></div>
         <div class="acc-card acc-card--in"><p class="acc-label">Income (period)</p><p class="acc-value">৳{{ fmt(accSummary.totalIn) }}</p></div>
@@ -61,7 +72,7 @@
       </div>
     </AppCard>
 
-    <div v-if="accSummary" class="grid">
+    <div v-if="school.hasModule('accounts') && accSummary" class="grid">
       <AppCard title="Income by head">
         <table class="mini-table">
           <thead><tr><th>Head</th><th>Entries</th><th>Total (৳)</th></tr></thead>
@@ -82,14 +93,14 @@
       </AppCard>
     </div>
 
-    <AppCard v-if="accSummary" title="Month-wise Income vs Expense">
+    <AppCard v-if="school.hasModule('accounts') && accSummary" title="Month-wise Income vs Expense">
       <Bar v-if="accMonthChart" :data="accMonthChart" :options="chartOptions" />
       <p v-else class="muted">No data in this period.</p>
     </AppCard>
     </div><!-- /.no-print -->
 
     <!-- Print-only sheet: Excel-style tabular statement (row/column, B/W safe). -->
-    <div v-if="accSummary" class="print-sheet-only">
+    <div v-if="school.hasModule('accounts') && accSummary" class="print-sheet-only">
       <div class="print-sheet">
         <h1>{{ schoolName }}</h1>
         <h2>Income &amp; Expense Statement</h2>
@@ -145,6 +156,7 @@ import {
 import { Bar } from 'vue-chartjs'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useChartPalette } from '@/composables/useChartPalette'
 import { useClasses, useExams, useExamResults, useLedgerSummary, useSettings, useStudents, useTeachers } from '@/composables/useQueries'
 import { useSchoolStore } from '@/stores/school'
@@ -156,11 +168,11 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 const { palette } = useChartPalette()
 const school = useSchoolStore()
 
-const { data: studentData } = useStudents({ perPage: 500 })
+const { data: studentData, isLoading: studentLoading } = useStudents({ perPage: 500 })
 const students = computed(() => studentData.value?.data.items ?? [])
-const { data: teacherData } = useTeachers({ perPage: 500 })
+const { data: teacherData, isLoading: teacherLoading } = useTeachers({ perPage: 500 }, () => school.hasModule('staff'))
 const teachers = computed(() => teacherData.value?.data.items ?? [])
-const { data: classData } = useClasses()
+const { data: classData, isLoading: classLoading } = useClasses()
 const classes = computed(() => classData.value?.data ?? [])
 
 const totalDues = computed(() => students.value.reduce((sum, s) => sum + s.dueAmount, 0))
@@ -205,11 +217,11 @@ const chartOptions = {
 }
 
 // Pass rate of the most recently published exam (server-computed).
-const { data: examData } = useExams({ perPage: 500 })
+const { data: examData, isLoading: examLoading } = useExams({ perPage: 500 }, () => school.hasModule('exam_result'))
 const latestPublished = computed(() =>
   (examData.value?.data.items ?? []).find((e) => e.status === 'published'),
 )
-const { data: examResultsData } = useExamResults(() => latestPublished.value?.id ?? '')
+const { data: examResultsData, isLoading: resultsLoading } = useExamResults(() => latestPublished.value?.id ?? '')
 const passRate = computed(() => examResultsData.value?.data.summary.passRate ?? 0)
 
 // ---------- Accounts report (weekly / monthly / bi-monthly / yearly / full) ----------
@@ -265,7 +277,7 @@ const accParams = computed(() => ({
   from: accFrom.value || undefined,
   to: accTo.value || undefined,
 }))
-const { data: accData, isLoading: accLoading, isFetching: accFetching } = useLedgerSummary(accParams)
+const { data: accData, isLoading: accLoading, isFetching: accFetching } = useLedgerSummary(accParams, () => school.hasModule('accounts'))
 const accSummary = computed(() => accData.value?.data)
 const accIncomeHeads = computed(() => (accSummary.value?.byHead ?? []).filter((r) => r.kind === 'income'))
 const accExpenseHeads = computed(() => (accSummary.value?.byHead ?? []).filter((r) => r.kind === 'expense'))
@@ -355,7 +367,7 @@ const printedOn = computed(() => new Date().toISOString().slice(0, 10))
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: var(--spacing-md);
 }
 .muted {
@@ -398,7 +410,7 @@ const printedOn = computed(() => new Date().toISOString().slice(0, 10))
 .preset-btn--active {
   background: var(--color-primary);
   border-color: var(--color-primary);
-  color: #fff;
+  color: var(--color-primary-contrast);
   font-weight: 600;
 }
 .preset-date {

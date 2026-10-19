@@ -17,6 +17,8 @@ const ACCOUNTANT_ALLOWED = new Set([
   'admin.payments.view',
   'admin.payments.manage',
   'admin.reports.view',
+  // Own account page ("My Profile") — self-service for every panel member.
+  'admin.profile.view',
 ])
 
 export function canUsePermission(role: UserRole | null, permission: string): boolean {

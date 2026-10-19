@@ -4,10 +4,8 @@
       <PasswordInput v-model="pwd.currentPassword" label="Current password" required autocomplete="current-password" />
       <PasswordInput v-model="pwd.newPassword" label="New password (min 6 characters)" required :minlength="6" autocomplete="new-password" />
       <PasswordInput v-model="pwd.confirm" label="Confirm new password" required autocomplete="new-password" />
-      <p v-if="error" class="error">{{ error }}</p>
-      <AppButton type="submit" :disabled="saving">
-        {{ saving ? 'Updating…' : 'Update Password' }}
-      </AppButton>
+      <p v-if="error" class="error" role="alert">{{ error }}</p>
+      <AppButton type="submit" :loading="saving">Update Password</AppButton>
     </form>
   </AppCard>
 </template>

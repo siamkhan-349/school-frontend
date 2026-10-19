@@ -2,7 +2,11 @@
   <div class="page">
     <h1 class="page__title">Settings</h1>
 
-    <p v-if="isLoading" class="muted">Loading…</p>
+    <div v-if="isLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <template v-else>
       <div class="grid">
         <AppCard title="School Profile">
@@ -14,9 +18,8 @@
               <label>Starts at<input v-model="profile.schoolStartTime" type="time" class="app-input__control" /></label>
               <label>Ends at<input v-model="profile.schoolEndTime" type="time" class="app-input__control" /></label>
             </div>
-            <label>Late after (blank = start time)<input v-model="profile.lateTime" type="time" class="app-input__control" /></label>
-            <AppButton type="submit" :disabled="savingProfile">
-              {{ savingProfile ? 'Saving…' : 'Save Profile' }}
+            <AppButton type="submit" :loading="savingProfile">
+              Save Profile
             </AppButton>
           </form>
           <p class="muted">Modules, institute type and platform options are managed by the super-admin.</p>
@@ -49,8 +52,8 @@
               </div>
             </div>
             <p class="muted">Card taps and roster saves on these days record holiday. Close-day marks them holiday too.</p>
-            <AppButton type="submit" :disabled="savingHolidays">
-              {{ savingHolidays ? 'Saving…' : 'Save Holidays' }}
+            <AppButton type="submit" :loading="savingHolidays">
+              Save Holidays
             </AppButton>
           </form>
         </AppCard>
@@ -60,8 +63,8 @@
             <PasswordInput v-model="pwd.currentPassword" label="Current password" required autocomplete="current-password" />
             <PasswordInput v-model="pwd.newPassword" label="New password (min 6 characters)" required :minlength="6" autocomplete="new-password" />
             <PasswordInput v-model="pwd.confirm" label="Confirm new password" required autocomplete="new-password" />
-            <AppButton type="submit" :disabled="savingPassword">
-              {{ savingPassword ? 'Updating…' : 'Update Password' }}
+            <AppButton type="submit" :loading="savingPassword">
+              Update Password
             </AppButton>
           </form>
         </AppCard>
@@ -71,12 +74,15 @@
           <ul v-else class="type-list">
             <li v-for="t in salaryTypes" :key="t.id" class="type-list__row">
               <span>{{ t.name }}</span>
-              <button class="link-btn link-btn--danger" type="button" @click="removeSalaryType(t.id, t.name)">Remove</button>
+              <button class="link-btn link-btn--danger" type="button" :disabled="rowBusyId === t.id" @click="removeSalaryType(t.id, t.name)">
+                <AppSpinner v-if="rowBusyId === t.id" size="sm" label="Working" />
+                <template v-else>Remove</template>
+              </button>
             </li>
           </ul>
           <form class="inline-form" @submit.prevent="addSalaryType">
             <input v-model="newSalaryType" class="app-input__control" placeholder="e.g. Daily" required />
-            <AppButton type="submit" :disabled="creatingSalaryType">Add</AppButton>
+            <AppButton type="submit" :loading="creatingSalaryType">Add</AppButton>
           </form>
           <p class="muted">Teacher form picks one of these (Monthly by default). A type used by teachers cannot be removed.</p>
         </AppCard>
@@ -89,6 +95,8 @@
 import { computed, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
+import AppSpinner from '@/components/common/AppSpinner.vue'
 import PasswordInput from '@/components/common/PasswordInput.vue'
 import { useChangePassword, useCreateSalaryType, useDeleteSalaryType, useSalaryTypes, useSettings, useUpdateSettings } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
@@ -108,7 +116,6 @@ const profile = reactive({
   phone: '',
   schoolStartTime: '',
   schoolEndTime: '',
-  lateTime: '',
 })
 
 const pwd = reactive({
@@ -156,7 +163,6 @@ watch(
     profile.phone = s.phone
     profile.schoolStartTime = s.schoolStartTime
     profile.schoolEndTime = s.schoolEndTime
-    profile.lateTime = s.lateTime ?? ''
     holidays.weekly = [...(s.weeklyHolidays ?? [])]
     holidays.spans = (s.holidays ?? []).map((h) => ({
       from: h.from ?? '',
@@ -210,11 +216,12 @@ async function savePassword(): Promise<void> {
 }
 
 // Payroll master: salary types (Monthly, Daily, ...) picked in the teacher form.
-const { data: salaryTypeData } = useSalaryTypes()
+const { data: salaryTypeData } = useSalaryTypes(() => school.hasModule('payroll'))
 const salaryTypes = computed(() => salaryTypeData.value?.data ?? [])
 const { mutateAsync: createSalaryType, isPending: creatingSalaryType } = useCreateSalaryType()
 const { mutateAsync: deleteSalaryType } = useDeleteSalaryType()
 const newSalaryType = ref('')
+const rowBusyId = ref<string | null>(null)
 async function addSalaryType(): Promise<void> {
   const name = newSalaryType.value.trim()
   if (!name) return
@@ -227,11 +234,14 @@ async function addSalaryType(): Promise<void> {
   }
 }
 async function removeSalaryType(id: string, name: string): Promise<void> {
+  rowBusyId.value = id
   try {
     await deleteSalaryType(id)
     toast.success(`"${name}" removed`)
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Remove failed')
+  } finally {
+    rowBusyId.value = null
   }
 }
 </script>
@@ -248,7 +258,7 @@ async function removeSalaryType(id: string, name: string): Promise<void> {
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: var(--spacing-md);
   align-items: start;
 }
@@ -290,6 +300,13 @@ async function removeSalaryType(id: string, name: string): Promise<void> {
   gap: var(--spacing-xs);
   align-items: center;
   margin-bottom: var(--spacing-xs);
+}
+/* 641–900px the two-up grid keeps ~330px cards; a 4-column holiday row
+   cannot fit there, so it collapses with the grid on tablets too. */
+@media (max-width: 900px) {
+  .span-row {
+    grid-template-columns: 1fr;
+  }
 }
 .link-btn {
   background: none;

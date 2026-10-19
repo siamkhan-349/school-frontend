@@ -3,7 +3,7 @@
     <div class="page__head">
       <div>
         <h1 class="page__title">Add Teacher / Staff</h1>
-        <p class="page__hint">Basic info → salary. Saving a teacher offers subject assignment.</p>
+        <p class="page__hint">{{ school.hasModule('payroll') ? 'Basic info → salary. Saving a teacher offers subject assignment.' : 'Basic info. Saving a teacher offers subject assignment.' }}</p>
       </div>
       <AppButton variant="ghost" type="button" @click="goBack">← Teachers & Staff</AppButton>
     </div>
@@ -27,12 +27,14 @@
           </label>
           <label>Phone<input v-model="form.phone" class="app-input__control" placeholder="Enter phone number" /></label>
           <label>Designation<input v-model="form.designation" class="app-input__control" placeholder="Enter designation" /></label>
-          <label>Card / Finger ID (for attendance)<input v-model="form.cardId" class="app-input__control" placeholder="Scan or type card ID" /></label>
+          <label v-if="school.hasModule('payroll')">Card / Finger ID (for attendance)<input v-model="form.cardId" class="app-input__control" placeholder="Scan or type card ID" /></label>
+          <label v-if="school.hasModule('payroll') && school.staffOwnTimes">Entry time — own start<input v-model="form.baseTime" type="time" class="app-input__control" /><span class="hint">Per-person timing on: late counts from here (blank = school start)</span></label>
+          <label v-if="school.hasModule('payroll') && school.staffOwnTimes">Exit time — own end<input v-model="form.endTime" type="time" class="app-input__control" /><span class="hint">Exit taps count from here (blank = school end)</span></label>
           <label>Joining Date<input v-model="form.joiningDate" type="date" class="app-input__control" /></label>
         </div>
       </AppCard>
 
-      <AppCard title="Salary (for payroll)">
+      <AppCard v-if="school.hasModule('payroll')" title="Salary (for payroll)">
         <div class="form-grid">
           <label>Salary type
             <select v-model="form.payTypeId" class="app-input__control">
@@ -55,7 +57,7 @@
       <p v-if="formError" class="error">{{ formError }}</p>
       <div class="page-actions">
         <AppButton variant="ghost" type="button" @click="goBack">Cancel</AppButton>
-        <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save' }}</AppButton>
+        <AppButton type="submit" :loading="saving">Save</AppButton>
       </div>
     </form>
 
@@ -81,14 +83,20 @@ import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import { useCreateTeacher, useSalaryTypes } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import { teacherService } from '@/services'
 
 const toast = useToast()
 const router = useRouter()
+const school = useSchoolStore()
 
 const form = reactive({
   name: '', kind: 'teacher' as 'teacher' | 'staff',
   phone: '', designation: '', cardId: '', joiningDate: '',
+  /** Own base time "HH:MM" ("" = school start; used while per-person timing is on). */
+  baseTime: '',
+  /** Own end time "HH:MM" ("" = school end; used while per-person timing is on). */
+  endTime: '',
   payTypeId: '', basicSalary: 0,
   extraAllowance: 0,
   overtimeRate: 0, pfPercent: 0,
@@ -117,7 +125,7 @@ function resetPerDay(): void {
 }
 
 // Salary-type master (Settings): Monthly by default selected.
-const { data: salaryTypeData } = useSalaryTypes()
+const { data: salaryTypeData } = useSalaryTypes(() => school.hasModule('payroll'))
 const salaryTypes = computed(() => salaryTypeData.value?.data ?? [])
 const monthlyId = computed(
   () => (salaryTypeData.value?.data ?? []).find((t) => t.name.toLowerCase() === 'monthly')?.id ?? '',
@@ -191,6 +199,11 @@ async function saveForm(): Promise<void> {
       phone: form.phone.trim(),
       designation: form.designation.trim(),
       cardId: form.cardId.trim(),
+      // Own base time travels only while per-person timing is on; hidden
+      // means "don't touch" (stored values stay).
+      ...(school.hasModule('payroll') && school.staffOwnTimes
+        ? { baseTime: form.baseTime || null, endTime: form.endTime || null }
+        : {}),
       joiningDate: form.joiningDate,
       status: 'active' as const,
       payTypeId: form.payTypeId,
@@ -243,10 +256,6 @@ async function saveForm(): Promise<void> {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   margin-top: var(--spacing-xs);
-}
-.page__title {
-  font-size: var(--font-size-2xl);
-  font-weight: var(--font-weight-bold);
 }
 .muted {
   color: var(--color-text-muted);

@@ -27,11 +27,16 @@ const router = createRouter({
     ...parentRoutes,
     ...superAdminRoutes,
     ...teacherRoutes,
-    { path: '/', redirect: '/admin/dashboard' },    { path: '/access-denied', component: StatusView, props: { code: '403', message: 'Access denied.' } },
+    { path: '/', redirect: '/admin/dashboard' },
+    { path: '/access-denied', component: StatusView, props: { code: '403', message: 'Access denied.' } },
     { path: '/module-unavailable', component: StatusView, props: { code: '402', message: 'This feature is not enabled for your institute.' } },
     { path: '/suspended', component: StatusView, props: { code: '402', message: 'Institute suspended — features are locked. Contact the platform to restore access.' } },
     { path: '/:pathMatch(.*)*', component: StatusView, props: { code: '404', message: 'Page not found.' } },
   ],
+  // Mobile UX: new pages start at the top; back/forward keeps its position.
+  scrollBehavior(_to, _from, savedPosition) {
+    return savedPosition ?? { top: 0 }
+  },
 })
 
 router.beforeEach(async (to) => {

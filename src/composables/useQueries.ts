@@ -128,10 +128,11 @@ export function useStudentPayments(studentId: MaybeReactive<string>) {
 }
 
 // ---------- teachers ----------
-export function useTeachers(source: ParamSource = {}) {
+export function useTeachers(source: ParamSource = {}, enabled: MaybeReactive<boolean> = true) {
   return useQuery({
     queryKey: keyOf('teachers', source),
     queryFn: () => teacherService.list(resolveParams(source)),
+    enabled: computed(() => resolveReactive(enabled)),
     placeholderData: (prev) => prev,
   })
 }
@@ -179,8 +180,12 @@ export function useDeleteTeacher() {
 }
 
 // ---------- salary types (payroll master, managed from Settings) ----------
-export function useSalaryTypes() {
-  return useQuery({ queryKey: ['salary-types'], queryFn: () => salaryTypeService.list() })
+export function useSalaryTypes(enabled: MaybeReactive<boolean> = true) {
+  return useQuery({
+    queryKey: ['salary-types'],
+    queryFn: () => salaryTypeService.list(),
+    enabled: computed(() => resolveReactive(enabled)),
+  })
 }
 
 export function useCreateSalaryType() {
@@ -363,17 +368,22 @@ export function useDeleteSubject() {
 }
 
 // ---------- exams / payments / dashboard ----------
-export function useExams(source: ParamSource = {}) {
+export function useExams(source: ParamSource = {}, enabled: MaybeReactive<boolean> = true) {
   return useQuery({
     queryKey: keyOf('exams', source),
     queryFn: () => examService.list(resolveParams(source)),
+    enabled: computed(() => resolveReactive(enabled)),
   })
 }
 
-export function usePayments(source: ParamSource = {}) {
+export function usePayments(source: ParamSource = {}, enabled: MaybeReactive<boolean> = true) {
   return useQuery({
     queryKey: keyOf('payments', source),
     queryFn: () => paymentService.list(resolveParams(source)),
+    // Keep the previous page visible while filters/pagination refetch, so the
+    // table dims instead of vanishing on every keystroke (view debounces too).
+    placeholderData: (prev) => prev,
+    enabled: computed(() => resolveReactive(enabled)),
   })
 }
 
@@ -393,12 +403,14 @@ export function useRoutines(
   classId: MaybeReactive<string | undefined> = undefined,
   sectionId: MaybeReactive<string | null | undefined> = undefined,
   routineType: MaybeReactive<'class' | 'exam' | undefined> = undefined,
+  enabled: MaybeReactive<boolean> = true,
 ) {
   const key = computed(() => ['routines', resolveReactive(classId) ?? 'all', resolveReactive(sectionId) ?? 'all', resolveReactive(routineType) ?? 'all'])
   return useQuery({
     queryKey: key,
     queryFn: () => routineService.list(resolveReactive(classId), resolveReactive(sectionId), resolveReactive(routineType)),
     placeholderData: (prev) => prev,
+    enabled: computed(() => resolveReactive(enabled)),
   })
 }
 
@@ -506,10 +518,11 @@ export function useStudentAttendanceHistory(studentId: MaybeReactive<string>) {
 }
 
 /** Live feed for the dashboard: latest records, auto-refreshed. */
-export function useRecentAttendance(limit = 10, refetchMs = 15000) {
+export function useRecentAttendance(limit = 10, refetchMs = 15000, enabled: MaybeReactive<boolean> = true) {
   return useQuery({
     queryKey: ['attendance-recent', limit],
     queryFn: () => attendanceService.recent(limit),
+    enabled: computed(() => resolveReactive(enabled)),
     refetchInterval: refetchMs,
     refetchIntervalInBackground: true,
   })
@@ -544,6 +557,7 @@ export function useAttendanceSummary(
   classId: MaybeReactive<string | undefined> = undefined,
   sectionId: MaybeReactive<string | null | undefined> = undefined,
   departmentId: MaybeReactive<string | null | undefined> = undefined,
+  enabled: MaybeReactive<boolean> = true,
 ) {
   const key = computed(() => [
     'attendance-summary',
@@ -554,6 +568,7 @@ export function useAttendanceSummary(
   return useQuery({
     queryKey: key,
     queryFn: () => attendanceService.summary(resolveReactive(classId), resolveReactive(sectionId), resolveReactive(departmentId)),
+    enabled: computed(() => resolveReactive(enabled)),
   })
 }
 
@@ -567,12 +582,12 @@ export function useStaffAttendance(date: MaybeReactive<string>) {
 }
 
 /** One date's whole-school sheet for the Recent Summary drill-down. */
-export function useAttendanceDay(date: MaybeReactive<string | null>) {
+export function useAttendanceDay(date: MaybeReactive<string | null>, enabled: MaybeReactive<boolean> = true) {
   const key = computed(() => ['attendance-day', resolveReactive(date)])
   return useQuery({
     queryKey: key,
     queryFn: () => attendanceService.day(resolveReactive(date) as string),
-    enabled: computed(() => !!resolveReactive(date)),
+    enabled: computed(() => !!resolveReactive(date) && resolveReactive(enabled)),
     placeholderData: (prev) => prev,
   })
 }
@@ -760,8 +775,12 @@ export function useExamResults(examId: MaybeReactive<string>) {
 }
 
 // ---------- payments ----------
-export function useDues() {
-  return useQuery({ queryKey: ['dues'], queryFn: () => paymentService.dues() })
+export function useDues(enabled: MaybeReactive<boolean> = true) {
+  return useQuery({
+    queryKey: ['dues'],
+    queryFn: () => paymentService.dues(),
+    enabled: computed(() => resolveReactive(enabled)),
+  })
 }
 
 export function useFeeStructure(classId: MaybeReactive<string>, departmentId: MaybeReactive<string | null>, merged: MaybeReactive<boolean> = false) {
@@ -791,12 +810,12 @@ export function useSaveFeeStructure() {
   })
 }
 
-export function useFeeCatalog(classId: MaybeReactive<string>, departmentId: MaybeReactive<string | null>, merged: MaybeReactive<boolean> = false) {
+export function useFeeCatalog(classId: MaybeReactive<string>, departmentId: MaybeReactive<string | null>, merged: MaybeReactive<boolean> = false, enabled: MaybeReactive<boolean> = true) {
   const key = computed(() => ['fee-catalog', resolveReactive(classId) || '', resolveReactive(departmentId) ?? '', !!resolveReactive(merged)])
   return useQuery({
     queryKey: key,
     queryFn: () => paymentService.feeCatalog(resolveReactive(classId), resolveReactive(departmentId), !!resolveReactive(merged)),
-    enabled: computed(() => !!resolveReactive(classId)),
+    enabled: computed(() => !!resolveReactive(classId) && resolveReactive(enabled)),
   })
 }
 
@@ -1000,11 +1019,12 @@ export function useLedger(source: ParamSource = {}) {
   })
 }
 
-export function useLedgerSummary(source: ParamSource = {}) {
+export function useLedgerSummary(source: ParamSource = {}, enabled: MaybeReactive<boolean> = true) {
   return useQuery({
     queryKey: keyOf('ledger-summary', source),
     queryFn: () => ledgerService.summary(resolveParams(source)),
     placeholderData: (prev) => prev,
+    enabled: computed(() => resolveReactive(enabled)),
   })
 }
 
@@ -1062,9 +1082,10 @@ export function usePaySalary() {
   })
 }
 
-export function useLeaves() {
+export function useLeaves(enabled: MaybeReactive<boolean> = true) {
   return useQuery({
     queryKey: ['leaves'],
+    enabled: computed(() => resolveReactive(enabled)),
     queryFn: async () => {
       const res = await payrollService.leaves()
       // List endpoint envelopes rows as {items, pagination} — unwrap so
@@ -1153,11 +1174,17 @@ export function useSmsLogs(source: ParamSource = {}) {
   return useQuery({
     queryKey: keyOf('sms-logs', source),
     queryFn: () => smsService.logs(resolveParams(source)),
+    // Same refetch behaviour as payments: stale rows stay, list dims.
+    placeholderData: (prev) => prev,
   })
 }
 
-export function useEvents() {
-  return useQuery({ queryKey: ['events'], queryFn: () => eventService.list() })
+export function useEvents(enabled: MaybeReactive<boolean> = true) {
+  return useQuery({
+    queryKey: ['events'],
+    queryFn: () => eventService.list(),
+    enabled: computed(() => resolveReactive(enabled)),
+  })
 }
 
 export function useCreateEvent() {
@@ -1256,9 +1283,10 @@ export function useParentResults(studentId: MaybeReactive<string>) {
  * into a silent 0. The count now comes from the scoped /parent/results
  * rows themselves.
  */
-export function useParentPublishedResults() {
+export function useParentPublishedResults(enabled: MaybeReactive<boolean> = true) {
   return useQuery({
     queryKey: ['parent-published-results'],
+    enabled: computed(() => resolveReactive(enabled)),
     queryFn: async () => {
       const childRes = await studentService.list({ perPage: 500 })
       const children = childRes.data?.items ?? []

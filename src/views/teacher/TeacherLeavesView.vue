@@ -4,12 +4,16 @@
       <h1 class="page__title">My Leaves</h1>
       <AppButton :disabled="!teacher" @click="form.open = true">+ Apply Leave</AppButton>
     </div>
-    <p v-if="meLoading" class="muted">Loading…</p>
+    <div v-if="meLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="!teacher" class="error">
       No teacher/staff profile is linked to this login. Ask the admin to link one from Users.
     </p>
     <AppCard v-else>
-      <div class="table-scroll">
+      <AppSkeleton v-if="leavesLoading" variant="table" :rows="6" :cols="6" />
+      <div v-else class="table-scroll">
         <table class="table">
           <thead>
             <tr><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Note</th></tr>
@@ -56,7 +60,7 @@
             <p v-if="formError" class="error">{{ formError }}</p>
             <div class="form-actions">
               <AppButton variant="ghost" type="button" @click="form.open = false">Cancel</AppButton>
-              <AppButton type="submit" :disabled="applying">{{ applying ? 'Sending…' : 'Apply' }}</AppButton>
+              <AppButton type="submit" :loading="applying">Apply</AppButton>
             </div>
           </form>
         </div>
@@ -69,6 +73,7 @@
 import { computed, reactive, ref } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useApplyLeave, useLeaves, useMyTeacher } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 
@@ -77,7 +82,7 @@ const { data: meData, isLoading: meLoading } = useMyTeacher()
 const teacher = computed(() => meData.value?.data)
 const teacherId = computed(() => teacher.value?.id ?? '')
 
-const { data: leavesData } = useLeaves()
+const { data: leavesData, isLoading: leavesLoading } = useLeaves()
 const myLeaves = computed(() =>
   (leavesData.value?.data ?? []).filter((l) => l.teacherId === teacherId.value),
 )
@@ -170,6 +175,7 @@ async function apply(): Promise<void> {
   place-items: center;
   z-index: 60;
   padding: var(--spacing-lg);
+  overflow-y: auto;
 }
 .modal {
   background: var(--color-surface);
@@ -178,6 +184,9 @@ async function apply(): Promise<void> {
   box-shadow: var(--shadow-lg);
   padding: var(--spacing-lg);
   width: min(520px, 100%);
+  max-height: min(85vh, 640px);
+  max-height: min(85dvh, 640px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
@@ -186,6 +195,7 @@ async function apply(): Promise<void> {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   margin: 0;
+  overflow-wrap: anywhere;
 }
 .form {
   display: flex;

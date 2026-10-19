@@ -7,7 +7,11 @@
           <option v-for="c in children" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
       </FilterPanel>
-      <p v-if="routinesLoading" class="muted">Loading…</p>
+      <div v-if="routinesLoading" class="sk-stack">
+        <AppSkeleton variant="card" />
+        <AppSkeleton variant="card" />
+        <AppSkeleton variant="card" />
+      </div>
       <template v-else>
         <div v-for="day in WEEK_DAYS" :key="day" class="day-block">
           <h3 class="day-block__title">{{ day }}</h3>
@@ -27,6 +31,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import { useRoutines, useStudents } from '@/composables/useQueries'
 import { WEEK_DAYS, type Routine, type WeekDay } from '@/types/models'

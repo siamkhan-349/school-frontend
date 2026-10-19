@@ -9,7 +9,8 @@
           <h3 class="card-head__title">Sessions</h3>
           <AppButton @click="openSessionAdd">+ Add Session</AppButton>
         </div>
-        <ul class="list">
+        <AppSkeleton v-if="sessionsLoading" variant="list" :rows="3" />
+        <ul v-else class="list">
           <li v-for="s in sessions" :key="s.id" class="list__row">
             <span>{{ s.label }}</span>
             <span class="row-btns">
@@ -20,7 +21,7 @@
         </ul>
       </AppCard>
 
-      <AppCard>
+      <AppCard v-if="school.hasModule('payment')">
         <div class="card-head">
           <h3 class="card-head__title">Fees</h3>
         </div>
@@ -34,7 +35,8 @@
         <h3 class="card-head__title">Classes</h3>
         <AppButton @click="goAddClass">+ Add Class</AppButton>
       </div>
-      <p v-if="!allClasses.length" class="muted">No classes yet — use + Add Class to create the first one.</p>
+      <AppSkeleton v-if="classesLoading" variant="table" :rows="6" :cols="6" />
+      <p v-else-if="!allClasses.length" class="muted">No classes yet — use + Add Class to create the first one.</p>
       <template v-else>
         <p class="drag-hint muted">Drag a row to reorder the ladder — drop it on the bottom strip to send it last.</p>
         <table class="table">
@@ -86,7 +88,7 @@
             <label>End date<input v-model="sessionEnd" type="date" class="app-input__control" /></label>
             <div class="form-actions">
               <AppButton variant="ghost" type="button" @click="showSessionModal = false">Cancel</AppButton>
-              <AppButton type="submit" :disabled="savingSession">{{ savingSession ? 'Saving…' : (editingSessionId ? 'Save' : 'Add') }}</AppButton>
+              <AppButton type="submit" :loading="savingSession">{{ editingSessionId ? 'Save' : 'Add' }}</AppButton>
             </div>
           </form>
         </div>
@@ -109,6 +111,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import {
   useClasses,
   useCreateSession,
@@ -121,12 +124,14 @@ import {
   useUpdateSession,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
+import { useSchoolStore } from '@/stores/school'
 import type { AcademicSession, SchoolClass } from '@/types/models'
 
+const school = useSchoolStore()
 const toast = useToast()
 const router = useRouter()
-const { data: sessionData } = useSessions()
-const { data: classData } = useClasses()
+const { data: sessionData, isLoading: sessionsLoading } = useSessions()
+const { data: classData, isLoading: classesLoading } = useClasses()
 const { data: allSectionData } = useSections(undefined)
 const { data: subjectData } = useSubjects(undefined)
 const { data: allDeptData } = useDepartments(undefined)
@@ -366,6 +371,8 @@ async function doDeleteSession(): Promise<void> {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
 }
 .card-head__title {

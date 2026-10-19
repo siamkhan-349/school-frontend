@@ -1,7 +1,11 @@
 <template>
   <div class="page">
     <RouterLink to="/parent/children" class="back">‹ Back to children</RouterLink>
-    <p v-if="studentLoading" class="muted">Loading…</p>
+    <div v-if="studentLoading" class="sk-stack">
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+      <AppSkeleton variant="card" />
+    </div>
     <p v-else-if="!student" class="error">Student not found.</p>
     <template v-else>
       <div class="title-row">
@@ -13,13 +17,13 @@
           <dl class="kv">
             <div><dt>Roll</dt><dd>{{ student.roll }}</dd></div>
             <div><dt>Class</dt><dd>{{ classLabel }}</dd></div>
-            <div><dt>Total</dt><dd>৳{{ student.totalAmount }}</dd></div>
-            <div><dt>Paid</dt><dd>৳{{ student.paidAmount }}</dd></div>
-            <div><dt>Due</dt><dd>৳{{ student.dueAmount }}</dd></div>
+            <div v-if="school.hasModule('payment')"><dt>Total</dt><dd>৳{{ student.totalAmount }}</dd></div>
+            <div v-if="school.hasModule('payment')"><dt>Paid</dt><dd>৳{{ student.paidAmount }}</dd></div>
+            <div v-if="school.hasModule('payment')"><dt>Due</dt><dd>৳{{ student.dueAmount }}</dd></div>
           </dl>
         </AppCard>
-        <AppCard title="Published Results">
-          <p v-if="resultsLoading" class="muted">Loading…</p>
+        <AppCard v-if="school.hasModule('exam_result')" title="Published Results">
+          <AppSkeleton v-if="resultsLoading" variant="table" :rows="4" :cols="4" />
           <table v-else class="table">
             <thead>
               <tr><th>Exam</th><th>Subject</th><th>Marks</th><th>Grade</th></tr>
@@ -38,8 +42,9 @@
           </table>
         </AppCard>
       </div>
-      <AppCard title="Payment History">
-        <table class="table">
+      <AppCard v-if="school.hasModule('payment')" title="Payment History">
+        <AppSkeleton v-if="paymentsLoading" variant="table" :rows="4" :cols="4" />
+        <table v-else class="table">
           <thead>
             <tr><th>Receipt</th><th>Type</th><th>Paid (৳)</th><th>Date</th></tr>
           </thead>
@@ -64,6 +69,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import StudentAvatar from '@/components/common/StudentAvatar.vue'
 import {
   useClasses,
@@ -71,7 +77,9 @@ import {
   useStudent,
   useStudentPayments,
 } from '@/composables/useQueries'
+import { useSchoolStore } from '@/stores/school'
 
+const school = useSchoolStore()
 const route = useRoute()
 const id = computed(() => String(route.params.id ?? ''))
 
@@ -83,7 +91,7 @@ const classLabel = computed(
 )
 const { data: resultsData, isLoading: resultsLoading } = useParentResults(id)
 const results = computed(() => resultsData.value?.data ?? [])
-const { data: payData } = useStudentPayments(id)
+const { data: payData, isLoading: paymentsLoading } = useStudentPayments(id)
 const payments = computed(() => payData.value?.data ?? [])
 </script>
 
@@ -101,11 +109,14 @@ const payments = computed(() => payData.value?.data ?? [])
 .title-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
 }
 .title-row .page__title {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .muted {
   color: var(--color-text-muted);
@@ -116,7 +127,7 @@ const payments = computed(() => payData.value?.data ?? [])
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
 }
@@ -129,11 +140,14 @@ const payments = computed(() => payData.value?.data ?? [])
 .kv div {
   display: flex;
   justify-content: space-between;
+  gap: var(--spacing-sm);
   border-bottom: 1px solid var(--color-border);
   padding-bottom: var(--spacing-xs);
 }
 .kv dt {
   color: var(--color-text-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .table {
   width: 100%;
@@ -146,6 +160,12 @@ const payments = computed(() => payData.value?.data ?? [])
   text-align: left;
   padding: var(--spacing-sm) var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
+}
+@media (max-width: 640px) {
+  .table th,
+  .table td {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
 }
 .chip {
   display: inline-block;

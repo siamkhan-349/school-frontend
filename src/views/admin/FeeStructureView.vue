@@ -12,8 +12,8 @@
     </div>
 
     <div class="chips">
-      <span class="chip">{{ configuredClasses }} {{ configuredClasses === 1 ? 'class' : 'classes' }} configured</span>
-      <span class="chip">{{ overviewRows.length }} fees set</span>
+      <span class="chip"><AppSkeleton v-if="ovLoading" variant="chip" :width="'72px'" /><template v-else>{{ configuredClasses }} {{ configuredClasses === 1 ? 'class' : 'classes' }} configured</template></span>
+      <span class="chip"><AppSkeleton v-if="ovLoading" variant="chip" :width="'72px'" /><template v-else>{{ overviewRows.length }} fees set</template></span>
     </div>
 
     <AppCard title="Saved fees">
@@ -25,7 +25,7 @@
         </select>
         <AppButton variant="ghost" type="button" @click="resetOverview">Reset</AppButton>
       </FilterPanel>
-      <p v-if="ovLoading" class="muted">Loading…</p>
+      <AppSkeleton v-if="ovLoading" variant="table" :rows="8" :cols="6" />
       <table v-else class="table">
         <thead>
           <tr><th><button class="sort-btn" type="button" @click="ovSort.toggle('class')">Class{{ ovSort.arrow('class') }}</button></th><th>Scope</th><th>Fee name</th><th>Cycle</th><th><button class="sort-btn" type="button" @click="ovSort.toggle('amount')">Amount (৳){{ ovSort.arrow('amount') }}</button></th><th></th></tr>
@@ -50,14 +50,14 @@
           </tr>
         </tbody>
       </table>
-      <AppPagination v-model:page="ovPage" v-model:per-page="ovPerPage" :total="sortedOverview.length" />
+      <AppPagination v-model:page="ovPage" v-model:per-page="ovPerPage" :total="sortedOverview.length" :busy="ovLoading" />
     </AppCard>
 
     <AppCard title="Recurring dues">
       <p class="muted">Monthly-type fees accrue per cycle. Auto runs daily — use this when a run was missed.</p>
       <div class="mode-row">
-        <AppButton type="button" :disabled="generatingDues" @click="runGenerateDues">
-          {{ generatingDues ? 'Generating…' : 'Generate dues now' }}
+        <AppButton type="button" :loading="generatingDues" @click="runGenerateDues">
+          Generate dues now
         </AppButton>
       </div>
       <p v-if="duesMsg" class="note">{{ duesMsg }}</p>
@@ -81,8 +81,8 @@
           <p v-if="priceError" class="error">{{ priceError }}</p>
           <div class="modal__actions">
             <AppButton variant="ghost" type="button" @click="editing = null">Cancel</AppButton>
-            <AppButton type="button" :disabled="savingPrice" @click="savePrice">
-              {{ savingPrice ? 'Saving…' : 'Save' }}
+            <AppButton type="button" :loading="savingPrice" @click="savePrice">
+              Save
             </AppButton>
           </div>
         </div>
@@ -125,8 +125,8 @@
           <p v-if="quickError" class="error">{{ quickError }}</p>
           <div class="modal__actions">
             <AppButton variant="ghost" type="button" @click="quickOpen = false">Cancel</AppButton>
-            <AppButton type="button" :disabled="savingQuick || !quick.classId || !quick.name.trim()" @click="saveQuick">
-              {{ savingQuick ? 'Saving…' : 'Save fee' }}
+            <AppButton type="button" :disabled="!quick.classId || !quick.name.trim()" :loading="savingQuick" @click="saveQuick">
+              Save fee
             </AppButton>
           </div>
         </div>
@@ -141,6 +141,7 @@ import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
 import {
   useClasses,
@@ -375,6 +376,7 @@ async function runGenerateDues(): Promise<void> {
 }
 .mode-row {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
   flex-shrink: 0;
 }

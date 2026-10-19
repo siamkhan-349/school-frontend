@@ -2,7 +2,7 @@
   <div class="plain">
     <h1>{{ code }}</h1>
     <p>{{ message }}</p>
-    <RouterLink to="/admin/dashboard">Back to dashboard</RouterLink>
+    <RouterLink to="/">Back to dashboard</RouterLink>
   </div>
 </template>
 

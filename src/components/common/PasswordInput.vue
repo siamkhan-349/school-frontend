@@ -11,13 +11,15 @@
         :minlength="minlength"
         :autocomplete="autocomplete"
         :disabled="disabled"
+        :aria-label="label ? undefined : 'Password'"
       />
       <button
         type="button"
         class="pwd-field__toggle"
         :title="show ? 'Hide password' : 'Show password'"
-        aria-label="Toggle password visibility"
-        @click="show = !show"
+        :aria-label="show ? 'Hide password' : 'Show password'"
+        :aria-pressed="show"
+        @click.prevent="show = !show"
       >
         <EyeOff v-if="show" :size="18" />
         <Eye v-else :size="18" />
@@ -63,18 +65,18 @@ const show = ref(false)
 }
 .pwd-field__input {
   width: 100%;
-  padding-right: 40px;
+  padding-right: 44px;
 }
 .pwd-field__toggle {
   position: absolute;
-  right: 6px;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
   border: none;
   border-radius: var(--radius-md);
   background: transparent;

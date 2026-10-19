@@ -11,7 +11,9 @@
       </div>
     </div>
 
-    <p v-if="loadingEdit" class="muted">Loading…</p>
+    <div v-if="loadingEdit" class="sk-stack">
+      <AppSkeleton variant="card" />
+    </div>
     <AppCard v-else>
       <form class="form-grid" @submit.prevent="save">
         <label>Class
@@ -50,7 +52,7 @@
           <label>Subject name
             <input v-model="form.subjectLabel" class="app-input__control" required />
           </label>
-          <label>Teacher
+          <label v-if="school.hasModule('staff')">Teacher
             <select v-model="form.teacherId" class="app-input__control">
               <option :value="null">Assign later</option>
               <optgroup v-if="suggestedTeachers.length" label="Assigned to this subject ✓">
@@ -61,7 +63,12 @@
               </optgroup>
             </select>
           </label>
-          <p v-if="teacherMismatch" class="muted">Note: {{ teacherMismatch }} is not assigned to {{ form.subjectLabel || 'this subject' }} (Teacher Subjects page) — a substitute still works.</p>
+          <label v-else>Teacher name
+            <input v-model="form.teacherName" class="app-input__control" maxlength="255" placeholder="e.g. Abdul Malek" />
+          </label>
+          <p v-if="school.hasModule('staff') && teacherMismatch" class="muted">Note: {{ teacherMismatch }} is not assigned to {{ form.subjectLabel || 'this subject' }} (Teacher Subjects page) — a substitute still works.</p>
+          <p v-else-if="school.hasModule('staff') && !classMappingsLoading && subjectHasNoTeacher" class="muted">No teacher is assigned to this subject yet (Teacher Subjects page) — assign there and the teacher fills in here automatically.</p>
+          <p v-else-if="!school.hasModule('staff')" class="muted">Teachers &amp; Staff is off — type the name here; the timetable shows it as free text (no clash checks).</p>
         </template>
 
         <template v-if="mode === 'exam'">
@@ -104,17 +111,21 @@
               <label>Room
                 <input v-model="row.room" class="app-input__control" placeholder="Exam Hall" />
               </label>
-              <div class="field-block">
+              <div v-if="school.hasModule('staff')" class="field-block">
                 <span class="field-label">Invigilators</span>
                 <details class="teacher-pick">
                   <summary>{{ row.teacherIds.length ? `${row.teacherIds.length} selected` : 'None selected' }}</summary>
                   <div class="teacher-pick__list">
-                    <label v-for="t in teachers" :key="t.id" class="check">
-                      <input v-model="row.teacherIds" type="checkbox" :value="t.id" /> {{ t.name }}
-                    </label>
+                    <AppSkeleton v-if="teachersLoading" variant="lines" :lines="4" />
+                    <template v-else>
+                      <label v-for="t in teachers" :key="t.id" class="check">
+                        <input v-model="row.teacherIds" type="checkbox" :value="t.id" /> {{ t.name }}
+                      </label>
+                    </template>
                   </div>
                 </details>
               </div>
+              <p v-else class="muted">Invigilators need the Teachers &amp; Staff module.</p>
               <div class="exam-row__meta">
                 <span class="muted">{{ rowWeekday(row.date) }}</span>
                 <button v-if="!isEdit && examRows.length > 1" type="button" class="link-btn link-btn--danger" @click="removeExamRow(i)">Remove</button>
@@ -154,7 +165,7 @@
         <p v-if="formError" class="error span-2">{{ formError }}</p>
         <div class="form-actions">
           <AppButton variant="ghost" type="button" @click="goBack">Cancel</AppButton>
-          <AppButton type="submit" :disabled="saving">{{ saving ? 'Saving…' : isEdit ? 'Update' : 'Save' }}</AppButton>
+          <AppButton type="submit" :loading="saving">{{ isEdit ? 'Update' : 'Save' }}</AppButton>
         </div>
       </form>
     </AppCard>
@@ -166,6 +177,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import {
   useClasses,
   useClassSubjectTeachers,
@@ -212,6 +224,7 @@ const form = reactive({
   subjectId: null as string | null,
   subjectLabel: '',
   teacherId: null as string | null,
+  teacherName: '',
   teacherIds: [] as string[],
   room: '',
   title: '',
@@ -238,24 +251,28 @@ function subjectOptionLabel(s: Subject): string {
   return dept ? `${s.label} (${dept.label})` : s.label
 }
 
-const { data: teacherData } = useTeachers({ perPage: 500 })
+const { data: teacherData, isLoading: teachersLoading } = useTeachers({ perPage: 500 }, () => school.hasModule('staff'))
 const teachers = computed(() => teacherData.value?.data.items ?? [])
 
 // Teacher-subject suggestion (class mode only).
-const { data: classMappingData } = useClassSubjectTeachers(() => (mode.value === 'class' ? form.classId : null))
+const { data: classMappingData, isLoading: classMappingsLoading } = useClassSubjectTeachers(() => (mode.value === 'class' && school.hasModule('staff') ? form.classId : null))
 const classMappings = computed(() => classMappingData.value?.data ?? [])
 function teachersOfSubject(subjectId: string | null): { id: string; name: string }[] {
   if (!subjectId) return []
   const ids = classMappings.value.filter((m) => m.subjectId === subjectId).map((m) => m.teacherId)
   return teachers.value.filter((t) => ids.includes(t.id))
 }
+/** No teacher assigned to the picked subject yet (hint under the teacher pick). */
+const subjectHasNoTeacher = computed(() =>
+  school.hasModule('staff') && mode.value === 'class' && !!form.subjectId && teachersOfSubject(form.subjectId).length === 0,
+)
 function subjectOptionLine(s: Subject): string {
   const names = teachersOfSubject(s.id).map((t) => t.name)
   const base = subjectOptionLabel(s)
   if (!names.length) return base
   return names.length > 2 ? `${base} — ${names.slice(0, 2).join(', ')} +${names.length - 2}` : `${base} — ${names.join(', ')}`
 }
-const { data: subjectTeacherData } = useSubjectTeachers(() => (mode.value === 'class' ? form.subjectId : null))
+const { data: subjectTeacherData } = useSubjectTeachers(() => (mode.value === 'class' && school.hasModule('staff') ? form.subjectId : null))
 const suggestedTeachers = computed(() => {
   const ids = new Set((subjectTeacherData.value?.data ?? []).map((m) => m.teacherId))
   return teachers.value.filter((t) => ids.has(t.id))
@@ -391,7 +408,8 @@ watch(editData, (res) => {
   Object.assign(form, {
     classId: r.classId, sectionId: r.sectionId,
     subjectId: r.subjectId, subjectLabel: r.subjectLabel,
-    teacherId: r.teacherId, teacherIds: r.teacherIds?.length ? [...r.teacherIds] : (r.teacherId ? [r.teacherId] : []),
+    teacherId: r.teacherId, teacherName: r.teacherName ?? '',
+    teacherIds: r.teacherIds?.length ? [...r.teacherIds] : (r.teacherId ? [r.teacherId] : []),
     room: r.room, title: r.title, day: r.day, days: [r.day],
     startTime: toTimeInput(r.startTime), endTime: toTimeInput(r.endTime),
   })
@@ -452,7 +470,7 @@ async function saveClass(): Promise<void> {
       subjectId: form.subjectId,
       subjectLabel: form.subjectLabel.trim(),
       teacherId: form.teacherId,
-      teacherName: teacher?.name ?? '',
+      teacherName: teacher ? teacher.name : form.teacherName.trim(),
       room: form.room.trim(),
       title: '',
       day: form.day,
@@ -684,6 +702,8 @@ function save(): void {
   color: inherit;
   font-size: var(--font-size-sm);
   line-height: 1;
+  min-width: 28px;
+  min-height: 28px;
 }
 .day-quick {
   display: flex;

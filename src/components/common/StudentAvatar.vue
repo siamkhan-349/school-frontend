@@ -56,12 +56,12 @@ const genderClass = computed(() => {
   border: 1px solid var(--color-border);
 }
 .avatar--male {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--avatar-male-bg);
+  color: var(--avatar-male-fg);
 }
 .avatar--female {
-  background: #fce7f3;
-  color: #be185d;
+  background: var(--avatar-female-bg);
+  color: var(--avatar-female-fg);
 }
 .avatar--unknown {
   background: var(--color-surface-alt);

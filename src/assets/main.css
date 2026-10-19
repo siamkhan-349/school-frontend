@@ -1,13 +1,23 @@
 @import './base.css';
 @import './styles/variables.css';
+@import './shell.css';
 
+/* `overflow-x: clip` clips without creating a scroll container (keeps
+   position:sticky working). Old Safari gets the hidden fallback. */
 html,
 body {
-  overflow-x: clip;
+  overflow-x: hidden;
+}
+@supports (overflow-x: clip) {
+  html,
+  body {
+    overflow-x: clip;
+  }
 }
 
 #app {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 input.app-input__control,
@@ -55,6 +65,61 @@ textarea.app-input__control:focus-visible {
   box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
+/* ---------- Buttons ----------
+   Global so both <AppButton> and the raw shell buttons (topbar ☰ / theme /
+   logout) share one definition. These used to live only inside AppButton's
+   scoped styles, which left every layout topbar button unstyled. */
+.app-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  height: 40px;
+  padding: 0 var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast),
+    opacity var(--transition-fast);
+}
+.app-btn--primary {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+.app-btn--primary:hover {
+  background: var(--color-primary-hover);
+}
+.app-btn--ghost {
+  background: transparent;
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+.app-btn--ghost:hover {
+  background: var(--color-surface-alt);
+}
+.app-btn--danger {
+  background: var(--color-danger);
+  color: var(--color-danger-contrast);
+}
+.app-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* Spinner inherits the label colour so it stays visible on every variant. */
+.app-btn .app-spinner {
+  color: currentColor;
+}
+
+/* Keyboard users get a visible ring on links/buttons everywhere (views
+   mostly only style hover states, so the browser default is inconsistent). */
+:where(a, button, [role='switch'], [role='button']):focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
 .layout-main {
   width: 100%;
   max-width: var(--content-max-width);
@@ -73,6 +138,12 @@ textarea.app-input__control:focus-visible {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+/* Nested horizontal scrollers (table inside card body) shouldn't chain. */
+.table-scroll,
+.table-wrap,
+.app-card__body {
+  overscroll-behavior-x: contain;
+}
 
 /* Page headers hold title + action buttons: wrap instead of colliding. */
 .page__head,
@@ -81,9 +152,128 @@ textarea.app-input__control:focus-visible {
   gap: var(--spacing-sm);
 }
 
+/* ---------- Touch targets ----------
+   Row-action links (view styles set padding:0) and small tab/chip buttons
+   fall below the 36px touch minimum. min-height / inline-flex apply here
+   globally because the per-view styles never set those properties. */
+.link-btn,
+.link-danger,
+.back,
+.kind-tab,
+.main-tab,
+.mode-btn,
+.sub-tab,
+.tab,
+.chip-btn,
+.chip--btn,
+.count-btn,
+.preset-btn,
+.steps__item,
+.st {
+  min-height: 36px;
+}
+.link-btn,
+.link-danger,
+.back {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---------- Refetch affordance ----------
+   Regions that keep stale content while re-running (placeholderData) dim
+   instead of swapping back to a loading state, so rows never flash away. */
+.is-fetching {
+  opacity: 0.65;
+  transition: opacity var(--transition-fast);
+}
+
+/* Vertical stack of skeleton blocks used by page-level loading gates. */
+.sk-stack {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+/* ---------- Toasts (host lives in App.vue) ---------- */
+.app-toasts {
+  position: fixed;
+  right: var(--spacing-lg);
+  bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--spacing-sm);
+  z-index: 100;
+}
+.app-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  max-width: min(380px, calc(100vw - 2 * var(--spacing-md)));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
+}
+.app-toast__msg {
+  flex: 1;
+  min-width: 0;
+}
+.app-toast__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: calc(-1 * var(--spacing-xs)) calc(-1 * var(--spacing-sm)) calc(-1 * var(--spacing-xs)) 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-lg);
+  line-height: 1;
+}
+.app-toast__close:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+.app-toast--error {
+  border-color: var(--color-danger);
+}
+.app-toast--success {
+  border-color: var(--color-success);
+}
+.app-toast--info {
+  border-color: var(--color-info);
+}
+
 @media (max-width: 900px) {
   .layout-main {
     padding-inline: var(--spacing-md);
+  }
+}
+
+@media (max-width: 640px) {
+  .app-toasts {
+    right: var(--spacing-md);
+    bottom: calc(var(--spacing-md) + env(safe-area-inset-bottom, 0px));
+    left: var(--spacing-md);
+    align-items: stretch;
+  }
+  .app-toast {
+    max-width: none;
+  }
+  /* Multi-column form/detail grids collapse to one column on phones.
+     !important beats the per-view scoped column rules on purpose. */
+  .form-grid,
+  .form-row,
+  .form__row,
+  .span-row,
+  .kv {
+    grid-template-columns: 1fr !important;
   }
 }
 
@@ -165,23 +355,5 @@ textarea.app-input__control:focus-visible {
     border-top: 1px solid #000;
     padding-top: 4px;
     text-align: center;
-  }
-}
-
-@media (max-width: 640px) {
-  .layout-main {
-    padding-inline: var(--spacing-sm);
-  }
-  .app-card__body {
-    padding: var(--spacing-md);
-  }
-  /* Multi-column form/detail grids collapse to one column on phones.
-     !important beats the per-view scoped column rules on purpose. */
-  .form-grid,
-  .form-row,
-  .form__row,
-  .span-row,
-  .kv {
-    grid-template-columns: 1fr !important;
   }
 }

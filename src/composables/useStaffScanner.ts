@@ -43,7 +43,7 @@ function tapErrorMessage(error: unknown): string {
  */
 export function useStaffScanner() {
   const qc = useQueryClient()
-  const { mutate } = useMutation({
+  const { mutateAsync } = useMutation({
     mutationFn: (cardId: string) => attendanceService.staffTap(cardId),
     onSuccess: (res, cardId) => {
       const d = res.data
@@ -74,9 +74,15 @@ export function useStaffScanner() {
     },
   })
 
-  function punch(cardId: string): void {
+  /** Resolves once the tap call settles, so callers can drive a busy state. */
+  async function punch(cardId: string): Promise<void> {
     const value = cardId.trim()
-    if (value.length >= 3) mutate(value)
+    if (value.length < 3) return
+    try {
+      await mutateAsync(value)
+    } catch {
+      /* onError already surfaces the failure in lastStaffTap */
+    }
   }
 
   let burst = ''

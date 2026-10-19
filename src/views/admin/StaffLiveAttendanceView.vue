@@ -3,7 +3,7 @@
     <div class="page__head">
       <div>
         <h1 class="page__title">Staff Live Attendance</h1>
-        <p class="muted">Card / finger reader — separate from student attendance. Today: {{ today }}</p>
+        <p class="muted">Card / finger reader — staff attendance only; present/absent days feed the payroll sheet. Today: {{ today }}</p>
       </div>
       <AppButton variant="ghost" type="button" @click="router.push('/admin/teachers')">Teachers & Staff</AppButton>
     </div>
@@ -17,7 +17,7 @@
           placeholder="Scan card or finger ID…"
           autocomplete="off"
         />
-        <AppButton type="submit" :disabled="!scanBox.trim()">Punch</AppButton>
+        <AppButton type="submit" :disabled="!scanBox.trim()" :loading="punching">Punch</AppButton>
       </form>
       <p class="hint">The reader types like a keyboard — this page just needs to stay open, no box focus needed.</p>
       <p v-if="lastTap.ok" class="tap-ok">{{ lastTap.ok }}</p>
@@ -42,8 +42,8 @@
     </AppCard>
 
     <AppCard>
-      <h3 class="card-title">Tapped today ({{ tappedToday.length }})</h3>
-      <p v-if="isLoading" class="muted">Loading…</p>
+      <h3 class="card-title">Tapped today (<AppSkeleton v-if="isLoading" variant="chip" :width="'28px'" /><template v-else>{{ tappedToday.length }}</template>)</h3>
+      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="5" />
       <p v-else-if="!tappedToday.length" class="muted">Nobody tapped yet today.</p>
       <table v-else class="table">
         <thead>
@@ -68,6 +68,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import { useStaffAttendance, useTeachers } from '@/composables/useQueries'
 import { lastStaffTap, lastStaffTapDetail, useStaffScanner } from '@/composables/useStaffScanner'
 
@@ -80,8 +81,14 @@ const { punch } = useStaffScanner()
 const lastTap = lastStaffTap
 const detail = lastStaffTapDetail
 
-function submitScan(): void {
-  punch(scanBox.value)
+const punching = ref(false)
+async function submitScan(): Promise<void> {
+  punching.value = true
+  try {
+    await punch(scanBox.value)
+  } finally {
+    punching.value = false
+  }
   scanBox.value = ''
   scanInput.value?.focus()
 }
@@ -134,6 +141,7 @@ const tappedToday = computed(() => {
 }
 .scan-row {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
 }
 .scan-box {
@@ -153,7 +161,8 @@ const tappedToday = computed(() => {
   font-weight: var(--font-weight-bold);
 }
 .time-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: var(--spacing-md);
   margin-top: var(--spacing-md);
 }
@@ -164,7 +173,6 @@ const tappedToday = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 110px;
 }
 .time-card__label {
   font-size: var(--font-size-xs);
