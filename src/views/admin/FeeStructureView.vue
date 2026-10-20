@@ -3,10 +3,11 @@
     <div class="page__head">
       <div>
         <h1 class="page__title">Fee Management</h1>
-        <p class="page__hint">Name fees per class — and per department where the class has them (Class 9/10). Monthly-type fees repeat on their cycle; collection prefills from here.</p>
+        <p class="page__hint">Name fees per class — and per department or section where the class has them. A section fee overrides the same fee name for that section. Monthly-type fees repeat on their cycle; collection prefills from here.</p>
       </div>
       <div class="mode-row">
         <AppButton variant="ghost" type="button" @click="goSetup()">Full Fee Setup</AppButton>
+        <AppButton variant="ghost" type="button" @click="goExtra()">Extra Fee</AppButton>
         <AppButton type="button" @click="quickOpen = true">Single Fee Add</AppButton>
       </div>
     </div>
@@ -18,7 +19,7 @@
 
     <AppCard title="Saved fees">
       <FilterPanel>
-        <input v-model="ovSearch" class="app-input__control" placeholder="Search class / fee name…" />
+        <input v-model="ovSearch" class="app-input__control" placeholder="Search class / scope / fee name…" />
         <select v-model="ovClassId" class="app-input__control">
           <option value="">All classes</option>
           <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.label }}</option>
@@ -34,8 +35,10 @@
           <tr v-for="row in pagedOverview" :key="row.id">
             <td>{{ row.classLabel }}</td>
             <td>
-              <span class="badge" :class="row.departmentId ? 'badge--dept' : 'badge--common'">
-                {{ row.department || 'Common' }}
+              <span class="scope-cell">
+                <span v-if="row.departmentId" class="badge badge--dept">{{ row.department }}</span>
+                <span v-if="row.sectionId" class="badge badge--section">{{ row.section }}</span>
+                <span v-if="!row.departmentId && !row.sectionId" class="badge badge--common">Common</span>
               </span>
             </td>
             <td>{{ row.name }}</td>
@@ -68,7 +71,7 @@
       <div v-if="editing" class="modal-backdrop" @click.self="editing = null">
         <div class="modal" role="dialog" aria-modal="true">
           <h3 class="modal__title">Edit fee</h3>
-          <p class="modal__sub">{{ editing.classLabel }} · {{ editing.department || 'Common' }} · {{ editing.name }}</p>
+          <p class="modal__sub">{{ editing.classLabel }} · {{ editing.department || 'Common' }}<template v-if="editing.section"> · {{ editing.section }}</template> · {{ editing.name }}</p>
           <label>Fee name
             <input v-model="editing.name" type="text" class="app-input__control" />
           </label>
@@ -106,8 +109,14 @@
               <option v-for="d in quickDepartments" :key="d.id" :value="d.id">{{ d.label }}</option>
             </select>
           </label>
+          <label v-if="quick.classId && quickSections.length">Section (optional)
+            <select v-model="quick.sectionId" class="app-input__control">
+              <option :value="null">All sections (common)</option>
+              <option v-for="s in quickSections" :key="s.id" :value="s.id">{{ s.label }}</option>
+            </select>
+          </label>
           <label>Fee name
-            <input v-model="quick.name" class="app-input__control" placeholder="e.g. মাসিক বেতন" />
+            <input v-model="quick.name" class="app-input__control" placeholder="e.g. Monthly Fee" />
           </label>
           <label>Repeat every N days (0 = one-time)
             <input v-model.number="quick.cycleDays" type="number" min="0" class="app-input__control" placeholder="30 = monthly" />
@@ -121,6 +130,10 @@
               @input="quickTouched = true"
             />
           </label>
+          <p class="note">
+            This saves a standard fee in the class catalog. To charge students who are already admitted,
+            use <RouterLink to="/admin/fees/extra" @click="quickOpen = false">Extra Fee</RouterLink>.
+          </p>
           <p v-if="quickExisting > 0" class="note">Already set at ৳{{ quickExisting }} — saving will update it.</p>
           <p v-if="quickError" class="error">{{ quickError }}</p>
           <div class="modal__actions">
@@ -150,6 +163,7 @@ import {
   useFeeCatalogOverview,
   useGenerateDues,
   useSaveFeeCatalog,
+  useSections,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { useClientSort, usePagedList } from '@/composables/usePagedList'
@@ -192,6 +206,7 @@ const filteredOverview = computed(() => {
     return (
       r.classLabel.toLowerCase().includes(q) ||
       r.department.toLowerCase().includes(q) ||
+      r.section.toLowerCase().includes(q) ||
       r.name.toLowerCase().includes(q) ||
       String(r.amount).includes(q)
     )
@@ -214,6 +229,8 @@ const editing = ref<{
   classLabel: string
   departmentId: string | null
   department: string
+  sectionId: string | null
+  section: string
   name: string
   amount: number
   cycleDays: number
@@ -229,6 +246,8 @@ function openPriceEdit(row: FeeCatalogItem): void {
     classLabel: row.classLabel,
     departmentId: row.departmentId,
     department: row.department,
+    sectionId: row.sectionId,
+    section: row.section,
     name: row.name,
     amount: Number(row.amount) || 0,
     cycleDays: Number(row.cycleDays) || 0,
@@ -248,6 +267,7 @@ async function savePrice(): Promise<void> {
     await saveFeeCatalog({
       classId: m.classId,
       departmentId: m.departmentId,
+      sectionId: m.sectionId,
       fees: [{ id: m.id, name: m.name.trim(), amount: Number(m.amount) || 0, cycleDays: Number(m.cycleDays) || 0 }],
     })
     toast.success(`${m.name} saved`)
@@ -267,10 +287,14 @@ function goSetup(): void {
   if (ovClassId.value) query.classId = ovClassId.value
   router.push({ path: '/admin/fees/structure/setup', query })
 }
+function goExtra(): void {
+  router.push('/admin/fees/extra')
+}
 
 const quick = reactive({
   classId: '',
   departmentId: null as string | null,
+  sectionId: null as string | null,
   name: '',
   amount: 0,
   cycleDays: 0,
@@ -278,13 +302,18 @@ const quick = reactive({
 const quickClass = computed(() => classes.value.find((c) => c.id === quick.classId))
 const { data: quickDeptData } = useDepartments(() => quick.classId || undefined)
 const quickDepartments = computed(() => quickDeptData.value?.data ?? [])
+const { data: quickSectionData } = useSections(() => quick.classId || undefined, undefined, true)
+const quickSections = computed(() =>
+  (quickSectionData.value?.data ?? []).filter((s) => s.classId === quick.classId),
+)
 watch(() => quick.classId, () => {
   quick.departmentId = null
+  quick.sectionId = null
 })
 
 // If this class already has this fee name, show it + a short note.
 // Manual typing wins — auto-fill only runs until the user touches the box.
-const { data: quickCatalogData } = useFeeCatalog(() => quick.classId, () => quick.departmentId)
+const { data: quickCatalogData } = useFeeCatalog(() => quick.classId, () => quick.departmentId, () => quick.sectionId)
 const quickExisting = computed(() => {
   if (!quick.name.trim()) return 0
   const row = (quickCatalogData.value?.data ?? []).find(
@@ -313,6 +342,7 @@ async function saveQuick(): Promise<void> {
     await saveFeeCatalog({
       classId: quick.classId,
       departmentId: quick.departmentId,
+      sectionId: quick.sectionId,
       fees: [{ name: quick.name.trim(), amount: Number(quick.amount) || 0, cycleDays: Number(quick.cycleDays) || 0 }],
     })
     toast.success(`${quick.name.trim()} saved`)
@@ -397,8 +427,16 @@ async function runGenerateDues(): Promise<void> {
 .badge--dept {
   background: var(--color-warning-light, var(--color-primary-light));
 }
+.badge--section {
+  background: var(--color-info-light, var(--color-primary-light));
+}
 .badge--common {
   background: var(--color-primary-light);
+}
+.scope-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
 }
 .muted {
   color: var(--color-text-muted);
@@ -485,5 +523,9 @@ async function runGenerateDues(): Promise<void> {
   color: var(--color-primary);
   font-size: var(--font-size-sm);
   margin: 0;
+}
+.note a {
+  color: var(--color-primary);
+  text-decoration: underline;
 }
 </style>

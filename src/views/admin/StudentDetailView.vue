@@ -26,7 +26,7 @@
             <div v-if="school.hasModule('attendance')"><dt>Card ID</dt><dd>{{ student.cardId || '—' }}</dd></div>
             <div><dt>Class</dt><dd>{{ classLabel(student.classId) }}</dd></div>
             <div v-if="student.departmentId"><dt>Department</dt><dd>{{ deptLabel(student.departmentId) }}</dd></div>
-            <div><dt>Phone</dt><dd>{{ student.phone || '—' }}</dd></div>
+            <div><dt>Blood group</dt><dd>{{ student.bloodGroup || '—' }}</dd></div>
             <div><dt>Address</dt><dd>{{ student.address || '—' }}</dd></div>
             <div><dt>Date of birth</dt><dd>{{ student.dateOfBirth || '—' }}</dd></div>
             <div><dt>Previous institute</dt><dd>{{ student.instituteName || '—' }}</dd></div>

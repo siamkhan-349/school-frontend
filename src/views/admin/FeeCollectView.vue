@@ -1,6 +1,6 @@
 <template>
   <div class="page">
-    <h1 class="page__title">Collect Fee</h1>
+    <h1 class="page__title">Student Fee</h1>
 
     <div class="collect-grid">
     <AppCard class="collect-form">
@@ -73,7 +73,10 @@
           </select>
         </label>
         <label>Date<input v-model="form.paymentDate" type="date" class="app-input__control" required /></label>
-        <label>Collector<input v-model="form.collectorName" class="app-input__control" /></label>
+        <label>Collector
+          <input :value="collectorName" class="app-input__control collector-input" readonly />
+          <span class="muted">Set automatically from your login.</span>
+        </label>
         <label>Notes<input v-model="form.notes" class="app-input__control" placeholder="optional" /></label>
         <p class="muted">Due after this collection: ৳{{ previewDue }}</p>
         <p v-if="formError" class="error">{{ formError }}</p>
@@ -143,13 +146,15 @@ const allStudents = computed(() => studentData.value?.data.items ?? [])
 const { data: methodData } = usePaymentMethods()
 const methodOptions = computed(() => methodData.value?.data ?? [{ id: 'cash', label: 'Cash', value: 'cash' }])
 
+const collectorName = computed(
+  () => auth.user?.name?.trim() || auth.user?.email?.trim() || 'Admin',
+)
 const form = reactive({
   studentId: '',
   feeType: '',
   amount: 0,
   paymentMethod: 'cash',
   paymentDate: today(),
-  collectorName: auth.user?.email ?? 'Admin',
   notes: '',
 })
 watch(methodOptions, (opts) => {
@@ -163,6 +168,7 @@ const pickedStudent = computed(() => allStudents.value.find((s) => s.id === form
 const { data: pickedCatalogData } = useFeeCatalog(
   () => pickedStudent.value?.classId ?? '',
   () => pickedStudent.value?.departmentId ?? null,
+  () => pickedStudent.value?.sectionId ?? null,
   true,
 )
 const catalogNames = computed(() =>
@@ -467,7 +473,7 @@ async function collect(): Promise<void> {
         paid: lines.reduce((s, r) => s + r.paid, 0),
         paymentMethod: form.paymentMethod,
         paymentDate: form.paymentDate,
-        collectorName: form.collectorName.trim() || 'Admin',
+        collectorName: collectorName.value,
         notes: form.notes.trim(),
         breakdown: lines,
       })
@@ -483,7 +489,7 @@ async function collect(): Promise<void> {
         paid: form.amount,
         paymentMethod: form.paymentMethod,
         paymentDate: form.paymentDate,
-        collectorName: form.collectorName.trim() || 'Admin',
+        collectorName: collectorName.value,
         notes: form.notes.trim(),
       })
       toast.success(`Payment collected (${res.data.receiptNumber})`)
@@ -539,6 +545,11 @@ async function collect(): Promise<void> {
 .muted {
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
+}
+.collector-input {
+  background: var(--color-background);
+  color: var(--color-text-muted);
+  cursor: default;
 }
 .due-card {
   display: flex;

@@ -20,8 +20,8 @@
             <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.label }}</option>
           </select>
         </label>
-        <label class="field">Section
-          <select v-model="sectionId" class="app-input__control" :disabled="!classId">
+        <label v-if="classId" class="field">Section
+          <select v-model="sectionId" class="app-input__control">
             <option value="">No section</option>
             <option v-for="s in sections" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
@@ -87,7 +87,7 @@ const sectionId = ref('')
 
 const { data: classData } = useClasses()
 const classes = computed(() => classData.value?.data ?? [])
-const { data: sectionData } = useSections(() => classId.value || undefined)
+const { data: sectionData } = useSections(() => classId.value || undefined, undefined, true)
 const sections = computed(() => sectionData.value?.data ?? [])
 watch(classId, () => {
   sectionId.value = ''

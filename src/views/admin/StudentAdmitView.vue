@@ -48,7 +48,7 @@
             <input v-model="form.cardId" class="app-input__control" placeholder="e.g. RFID card number" />
             <span v-if="errors.cardId" class="field-error">{{ errors.cardId }}</span>
           </label>
-          <label>Guardian name
+          <label>Guardian name (optional)
             <input v-model="form.guardianName" class="app-input__control" placeholder="e.g. Abdul Uddin" />
           </label>
           <label>Guardian phone*
@@ -69,11 +69,16 @@
             <img :src="photoPreview" alt="Photo preview" />
             <AppButton variant="ghost" type="button" @click="clearPhoto">Remove</AppButton>
           </div>
-          <label>Date of birth<input v-model="form.dateOfBirth" type="date" class="app-input__control" /></label>
-          <label>Student phone<input v-model="form.phone" class="app-input__control" placeholder="01XXXXXXXXX" /></label>
-          <label>Guardian phone 2<input v-model="form.guardianPhone2" class="app-input__control" placeholder="01XXXXXXXXX" /></label>
-          <label>Previous institute<input v-model="form.instituteName" class="app-input__control" placeholder="e.g. Old school" /></label>
-          <label>Address<input v-model="form.address" class="app-input__control" /></label>
+          <label>Date of birth (optional)<input v-model="form.dateOfBirth" type="date" class="app-input__control" /></label>
+          <label>Blood group (optional)
+            <select v-model="form.bloodGroup" class="app-input__control">
+              <option value="">Select blood group</option>
+              <option v-for="group in BLOOD_GROUP_OPTIONS" :key="group" :value="group">{{ group }}</option>
+            </select>
+          </label>
+          <label>Guardian phone 2 (optional)<input v-model="form.guardianPhone2" class="app-input__control" placeholder="01XXXXXXXXX" /></label>
+          <label>Previous institute (optional)<input v-model="form.instituteName" class="app-input__control" placeholder="e.g. Old school" /></label>
+          <label>Address (optional)<input v-model="form.address" class="app-input__control" /></label>
         </div>
       </AppCard>
 
@@ -87,7 +92,7 @@
             </select>
             <span v-if="errors.classId" class="field-error">{{ errors.classId }}</span>
           </label>
-          <label>Section
+          <label v-if="form.classId">Section
             <select v-model="form.sectionId" class="app-input__control">
               <option value="">No section</option>
               <option v-for="s in admitSections" :key="s.id" :value="s.id">{{ s.label }}</option>
@@ -203,6 +208,7 @@ import {
 import { useToast } from '@/composables/useToast'
 import { useSchoolStore } from '@/stores/school'
 import { studentService } from '@/services'
+import { BLOOD_GROUP_OPTIONS } from '@/utils/bloodGroup'
 import type { FeeCatalogItem } from '@/types/models'
 
 const router = useRouter()
@@ -216,7 +222,7 @@ const form = reactive({
   name: '',
   cardId: '',
   gender: '',
-  phone: '',
+  bloodGroup: '',
   address: '',
   roll: '',
   guardianName: '',
@@ -238,7 +244,7 @@ const admitClass = computed(() => classes.value.find((c) => c.id === form.classI
 const { data: admitDeptData } = useDepartments(() => form.classId || undefined)
 const admitDepartments = computed(() => admitDeptData.value?.data ?? [])
 
-const { data: admitSectionData } = useSections(() => form.classId || undefined)
+const { data: admitSectionData } = useSections(() => form.classId || undefined, undefined, true)
 const admitSections = computed(() => admitSectionData.value?.data ?? [])
 watch(admitSections, (list) => {
   if (!list.some((s) => s.id === form.sectionId)) form.sectionId = list[0]?.id ?? ''
@@ -297,7 +303,7 @@ watch(visibleSubjectLabels, (labels) => {
 // has departments (merged common + dept). Each fee is ticked by default;
 // untick to skip it for this student. The total is the live sum of ticked
 // fees. Nothing is collected here — payment happens on the Collect page.
-const { data: admitCatalogData, isFetching: catalogFetching } = useFeeCatalog(() => form.classId, () => form.departmentId, true, () => school.hasModule('payment'))
+const { data: admitCatalogData, isFetching: catalogFetching } = useFeeCatalog(() => form.classId, () => form.departmentId, () => form.sectionId || null, true, () => school.hasModule('payment'))
 const catalogItems = computed(() => (admitCatalogData.value?.data ?? []).filter((r) => r.isActive))
 const catalogNonEmpty = computed(() => catalogItems.value.filter((r) => (Number(r.amount) || 0) > 0))
 function itemKey(item: FeeCatalogItem): string {
@@ -313,7 +319,7 @@ function toggleFee(item: FeeCatalogItem): void {
   else next.add(key)
   checkedFees.value = next
 }
-watch([() => `${form.classId}|${form.departmentId ?? ''}`, admitCatalogData], ([key, res]) => {
+watch([() => `${form.classId}|${form.departmentId ?? ''}|${form.sectionId ?? ''}`, admitCatalogData], ([key, res]) => {
   if (!form.classId || key === feeEditKey.value) return
   if (!res?.data && catalogFetching.value) return // scope data on the way — keep old edits
   feeEditKey.value = key
@@ -447,7 +453,7 @@ async function save(): Promise<void> {
       name: form.name.trim(),
       cardId: form.cardId.trim(),
       gender: form.gender,
-      phone: form.phone.trim(),
+      bloodGroup: form.bloodGroup,
       address: form.address.trim(),
       roll: form.roll.trim(),
       classId: form.classId,

@@ -16,12 +16,15 @@ import ExamCreateView from '@/views/admin/ExamCreateView.vue'
 import ExamsView from '@/views/admin/ExamsView.vue'
 import FeeCollectView from '@/views/admin/FeeCollectView.vue'
 import FeeDuesView from '@/views/admin/FeeDuesView.vue'
+import ExtraFeeView from '@/views/admin/ExtraFeeView.vue'
+import ExtraFeeEntryView from '@/views/admin/ExtraFeeEntryView.vue'
 import FeeStructureView from '@/views/admin/FeeStructureView.vue'
 import FeeStructureSetupView from '@/views/admin/FeeStructureSetupView.vue'
 import PaymentsView from '@/views/admin/PaymentsView.vue'
 import PaymentBulkView from '@/views/admin/PaymentBulkView.vue'
 import PayrollView from '@/views/admin/PayrollView.vue'
 import AccountsView from '@/views/admin/AccountsView.vue'
+import AccountEntryView from '@/views/admin/AccountEntryView.vue'
 import MonthlySheetView from '@/views/admin/MonthlySheetView.vue'
 import SalaryDetailView from '@/views/admin/SalaryDetailView.vue'
 import ReceiptView from '@/views/admin/ReceiptView.vue'
@@ -82,6 +85,8 @@ export const adminRoutes: RouteRecordRaw[] = [
       { path: 'fees', component: FeeStructureView, meta: { requiresAuth: true, permission: 'admin.payments.view', module: 'payment' } },
       { path: 'fees/structure', redirect: '/admin/fees' },
       { path: 'fees/collect', component: FeeCollectView, meta: { requiresAuth: true, permission: 'admin.payments.view', module: 'payment' } },
+      { path: 'fees/extra', component: ExtraFeeView, meta: { requiresAuth: true, permission: 'admin.payments.view', module: 'payment' } },
+      { path: 'fees/extra/new', component: ExtraFeeEntryView, meta: { requiresAuth: true, permission: 'admin.payments.manage', module: 'payment' } },
       { path: 'fees/structure/setup', component: FeeStructureSetupView, meta: { requiresAuth: true, permission: 'admin.payments.manage', module: 'payment' } },
       { path: 'fees/dues', component: FeeDuesView, meta: { requiresAuth: true, permission: 'admin.payments.view', module: 'payment' } },
       { path: 'payments', component: PaymentsView, meta: { requiresAuth: true, permission: 'admin.payments.view', module: 'payment' } },
@@ -89,6 +94,7 @@ export const adminRoutes: RouteRecordRaw[] = [
       { path: 'payments/:id', component: ReceiptView, meta: { requiresAuth: true, permission: 'admin.payments.view', module: 'payment' } },
       { path: 'payroll', component: PayrollView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'payroll' } },
       { path: 'accounts', component: AccountsView, meta: { requiresAuth: true, permission: 'admin.payments.view', module: 'accounts' } },
+      { path: 'accounts/new', component: AccountEntryView, meta: { requiresAuth: true, permission: 'admin.payments.view', module: 'accounts' } },
       { path: 'payroll/sheet/:year/:month', component: MonthlySheetView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'payroll' } },
       { path: 'payroll/salary/:id', component: SalaryDetailView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'payroll' } },
       { path: 'sms', component: SmsView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'core' } },

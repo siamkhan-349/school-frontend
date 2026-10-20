@@ -156,9 +156,10 @@ export const MODULE_CATALOG: ModuleCatalogEntry[] = [
       'Monthly salary sheets',
       'Generate & mark paid',
       'Salary types & deductions',
+      'Late days → hajira cut',
       'Leave requests & approvals',
     ],
-    note: 'Staff attendance (present/absent/late days) feeds the monthly salary sheet.',
+    note: 'Staff attendance (present/absent/late days) feeds the monthly salary sheet, including the late-to-hajira cut.',
   },
   {
     key: 'accounts',

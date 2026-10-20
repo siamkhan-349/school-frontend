@@ -317,7 +317,7 @@ function setupSummary(s: ExamSubject): string {
 
 const { data: classData } = useClasses()
 const classLabel = (id: string): string => classData.value?.data.find((c) => c.id === id)?.label ?? id
-const { data: sectionData } = useSections(() => exam.value?.classId || undefined)
+const { data: sectionData } = useSections(() => exam.value?.classId || undefined, undefined, true)
 const sectionLabel = (id: string): string => sectionData.value?.data.find((s) => s.id === id)?.label ?? ''
 const { data: deptData } = useDepartments(() => exam.value?.classId || undefined)
 const deptLabel = (id: string): string => deptData.value?.data.find((d) => d.id === id)?.label ?? ''

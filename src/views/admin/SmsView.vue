@@ -167,19 +167,10 @@
                   <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.label }}</option>
                 </select>
               </label>
-              <label>Section
+              <label v-if="sendForm.classId">Section
                 <select v-model="sendForm.sectionFilter" class="app-input__control">
                   <option value="">All sections</option>
-                  <optgroup v-if="!sendForm.classId" label="Same section across all classes">
-                    <option v-for="lbl in allSectionLabels" :key="lbl" :value="`label:${lbl}`">
-                      {{ lbl }} (all classes)
-                    </option>
-                  </optgroup>
-                  <optgroup :label="sendForm.classId ? 'Sections of this class' : 'Section'">
-                    <option v-for="s in classSections" :key="s.id" :value="s.id">
-                      {{ s.label }}{{ sendForm.classId ? '' : ` · ${classNameOf(s.classId)}` }}
-                    </option>
-                  </optgroup>
+                  <option v-for="s in classSections" :key="s.id" :value="s.id">{{ s.label }}</option>
                 </select>
               </label>
             </div>
@@ -617,20 +608,10 @@ const audiencePhoneLabel = (s: { guardianPhone: string; phone: string }): string
   guardianPhoneOf(s) || 'no phone'
 
 // Sections + departments for filter dropdowns
-const { data: allSectionsData } = useSections()
-const allSections = computed(() => allSectionsData.value?.data ?? [])
+const { data: classSectionData } = useSections(() => sendForm.classId || undefined, undefined, true)
+const classSections = computed(() => classSectionData.value?.data ?? [])
 const { data: allDeptsData } = useDepartments()
 const allDepts = computed(() => allDeptsData.value?.data ?? [])
-const allSectionLabels = computed(() => {
-  const seen: string[] = []
-  for (const s of allSections.value) {
-    if (s.label && !seen.includes(s.label)) seen.push(s.label)
-  }
-  return seen
-})
-const classSections = computed(() =>
-  sendForm.classId ? allSections.value.filter((s) => s.classId === sendForm.classId) : allSections.value,
-)
 const deptOptions = computed(() =>
   sendForm.classId ? allDepts.value.filter((d) => d.classId === sendForm.classId) : allDepts.value,
 )
@@ -674,11 +655,6 @@ function toggleMulti(id: string, checked: boolean): void {
 // Group roster: class + section + department filter, all auto-checked
 function sectionMatches(s: { sectionId: string | null }, filter: string): boolean {
   if (!filter) return true
-  if (filter.startsWith('label:')) {
-    const label = filter.slice(6)
-    if (s.sectionId === label) return true
-    return allSections.value.some((sec) => sec.id === s.sectionId && sec.label === label)
-  }
   return s.sectionId === filter
 }
 const groupRoster = computed(() =>

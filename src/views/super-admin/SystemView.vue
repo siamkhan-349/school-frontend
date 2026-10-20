@@ -2,8 +2,8 @@
   <div class="page">
     <h1 class="page__title">System</h1>
     <p class="muted">
-      Institute identity — super-admin only. Admins cannot edit these. Module options (exam,
-      cards, SMS) are configured from their own cards under Module Management.
+      Institute identity and the single school-admin login — super-admin only. Admins cannot edit these.
+      Module options (exam, cards, SMS) are configured from their own cards under Module Management.
     </p>
 
     <div v-if="isLoading" class="sk-stack">
@@ -23,20 +23,68 @@
           Save Configuration
         </AppButton>
       </form>
-      <dl class="kv">
-        <div><dt>API mode</dt><dd>live</dd></div>
-        <div><dt>Data layer</dt><dd>real backend database</dd></div>
-      </dl>
+    </AppCard>
+
+    <AppCard class="admin-card" title="Admin Login">
+      <p class="muted card-hint">
+        One school means one admin account. The super admin sets the username and password here;
+        the admin can change only their own password from My Profile.
+      </p>
+      <AppSkeleton v-if="adminLoading" variant="card" />
+      <form v-else class="form form--last" @submit.prevent="saveAdmin">
+        <div class="form__row">
+          <label>Name<input v-model="adminForm.name" class="app-input__control" required /></label>
+          <label>Username<input v-model="adminForm.username" class="app-input__control" required /></label>
+        </div>
+        <div class="form__row">
+          <label>Phone<input v-model="adminForm.phone" class="app-input__control" placeholder="01XXXXXXXXX" /></label>
+          <label>
+            Status
+            <select v-model="adminForm.status" class="app-input__control">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+        </div>
+        <div class="form__row">
+          <PasswordInput
+            v-model="adminForm.password"
+            :label="admin ? 'New password (blank = keep current)' : 'Password'"
+            :required="!admin"
+            :minlength="6"
+            autocomplete="new-password"
+            placeholder="Min 6 characters"
+          />
+          <PasswordInput
+            v-model="adminForm.confirmPassword"
+            label="Confirm password"
+            :required="!!adminForm.password"
+            :minlength="6"
+            autocomplete="new-password"
+            placeholder="Repeat new password"
+          />
+        </div>
+        <p v-if="adminError" class="error">{{ adminError }}</p>
+        <AppButton type="submit" :loading="savingAdmin">
+          {{ admin ? 'Save Admin Login' : 'Create Admin Login' }}
+        </AppButton>
+      </form>
     </AppCard>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
 import AppSkeleton from '@/components/common/AppSkeleton.vue'
-import { useSettings, useUpdateSettings } from '@/composables/useQueries'
+import PasswordInput from '@/components/common/PasswordInput.vue'
+import {
+  useSchoolAdmin,
+  useSettings,
+  useUpdateSchoolAdmin,
+  useUpdateSettings,
+} from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { useSchoolStore } from '@/stores/school'
 
@@ -81,6 +129,66 @@ async function saveProfile(): Promise<void> {
     toast.error('Save failed')
   }
 }
+
+// One school, one admin. The endpoint returns null when no admin row exists
+// (a hand-deleted account); the same form then creates the first one.
+const { data: adminData, isLoading: adminLoading } = useSchoolAdmin()
+const { mutateAsync: updateSchoolAdmin, isPending: savingAdmin } = useUpdateSchoolAdmin()
+const admin = computed(() => adminData.value?.data ?? null)
+const adminForm = reactive({
+  name: '',
+  username: '',
+  phone: '',
+  password: '',
+  confirmPassword: '',
+  status: 'active' as 'active' | 'inactive',
+})
+const adminError = ref('')
+
+watch(
+  admin,
+  (account) => {
+    adminForm.name = account?.name ?? ''
+    adminForm.username = account?.username ?? ''
+    adminForm.phone = account?.phone ?? ''
+    adminForm.status = account?.status === 'inactive' ? 'inactive' : 'active'
+  },
+  { immediate: true },
+)
+
+async function saveAdmin(): Promise<void> {
+  adminError.value = ''
+  if (!adminForm.name.trim() || !adminForm.username.trim()) {
+    adminError.value = 'Name and username are required.'
+    return
+  }
+  if (!admin && !adminForm.password) {
+    adminError.value = 'A password is required for the first admin login.'
+    return
+  }
+  if (adminForm.password && adminForm.password.length < 6) {
+    adminError.value = 'Password must be at least 6 characters.'
+    return
+  }
+  if (adminForm.password !== adminForm.confirmPassword) {
+    adminError.value = 'Passwords do not match.'
+    return
+  }
+  try {
+    await updateSchoolAdmin({
+      name: adminForm.name.trim(),
+      username: adminForm.username.trim().toLowerCase(),
+      phone: adminForm.phone.trim(),
+      status: adminForm.status,
+      ...(adminForm.password ? { password: adminForm.password } : {}),
+    })
+    adminForm.password = ''
+    adminForm.confirmPassword = ''
+    toast.success(admin ? 'Admin login updated' : 'Admin login created')
+  } catch (e) {
+    adminError.value = e instanceof Error ? e.message : 'Save failed'
+  }
+}
 </script>
 
 <style scoped>
@@ -94,11 +202,25 @@ async function saveProfile(): Promise<void> {
   font-size: var(--font-size-sm);
   margin-bottom: var(--spacing-md);
 }
+.card-hint {
+  margin: 0 0 var(--spacing-md);
+}
+.admin-card {
+  margin-top: var(--spacing-lg);
+}
+.error {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-lg);
+}
+.form--last {
+  margin-bottom: 0;
 }
 .form label {
   display: flex;
@@ -111,22 +233,9 @@ async function saveProfile(): Promise<void> {
   grid-template-columns: 1fr 1fr;
   gap: var(--spacing-sm);
 }
-.form__hint {
-  margin: 0;
-}
-.kv {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-  font-size: var(--font-size-sm);
-}
-.kv div {
-  display: flex;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--color-border);
-  padding-bottom: var(--spacing-xs);
-}
-.kv dt {
-  color: var(--color-text-muted);
+@media (max-width: 640px) {
+  .form__row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

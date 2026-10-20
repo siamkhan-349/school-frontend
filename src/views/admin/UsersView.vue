@@ -3,7 +3,7 @@
     <div class="page__head">
       <div>
         <h1 class="page__title">Users</h1>
-        <p class="muted">Teacher, accountant and parent logins — panels open from here.</p>
+        <p class="muted">Teacher, accountant and parent logins — panels open from here. The school-admin login is managed from the super admin System page.</p>
       </div>
       <AppButton @click="openNew">+ New User</AppButton>
     </div>

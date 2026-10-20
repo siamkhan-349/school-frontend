@@ -33,6 +33,9 @@
             <div><dt>Allowance</dt><dd>৳{{ sheet.allowance }}</dd></div>
             <div><dt>Bonus</dt><dd>৳{{ sheet.bonus ?? 0 }}</dd></div>
             <div><dt>Deduction</dt><dd>− ৳{{ sheet.deduction }}</dd></div>
+            <div v-if="num(sheet.lateDeduction) > 0">
+              <dt>· late cut inside</dt><dd>− ৳{{ sheet.lateDeduction }}</dd>
+            </div>
             <div class="gross"><dt>Gross</dt><dd>৳{{ gross }}</dd></div>
             <div class="net"><dt>Net payable</dt><dd>৳{{ netPreview }}</dd></div>
           </dl>
@@ -55,6 +58,10 @@
           <div><dt>Present</dt><dd>{{ sheet.presentDays ?? 0 }} day(s)</dd></div>
           <div><dt>Absent</dt><dd>{{ sheet.absentDays ?? 0 }} day(s)</dd></div>
           <div><dt>Late</dt><dd>{{ sheet.lateDays ?? 0 }} day(s)</dd></div>
+          <div>
+            <dt>Late cut</dt>
+            <dd>{{ sheet.lateCutDays ?? 0 }} hajira (৳{{ sheet.lateDeduction ?? 0 }})</dd>
+          </div>
           <div><dt>Paid on</dt><dd>{{ sheet.paymentDate || '—' }}</dd></div>
           <div><dt>Notes</dt><dd>{{ sheet.notes || '—' }}</dd></div>
         </dl>

@@ -49,8 +49,8 @@
               <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.label }}</option>
             </select>
           </label>
-          <label>Section
-            <select v-model="sectionId" class="app-input__control" :disabled="!classId">
+          <label v-if="classId">Section
+            <select v-model="sectionId" class="app-input__control">
               <option :value="null">All sections</option>
               <option v-for="s in sections" :key="s.id" :value="s.id">{{ s.label }}</option>
             </select>
@@ -171,8 +171,8 @@
               <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.label }}</option>
             </select>
           </label>
-          <label>Section
-            <select v-model="repSectionId" class="app-input__control" :disabled="!repClassId">
+          <label v-if="repClassId">Section
+            <select v-model="repSectionId" class="app-input__control">
               <option :value="null">All sections</option>
               <option v-for="s in repSections" :key="s.id" :value="s.id">{{ s.label }}</option>
             </select>
@@ -288,7 +288,7 @@ function goBack(): void {
 const { data: classData } = useClasses()
 const classes = computed(() => classData.value?.data ?? [])
 const filterClass = computed(() => classes.value.find((c) => c.id === classId.value))
-const { data: sectionData } = useSections(() => classId.value || undefined)
+const { data: sectionData } = useSections(() => classId.value || undefined, undefined, true)
 const sections = computed(() => sectionData.value?.data ?? [])
 const { data: filterDeptData } = useDepartments(() => classId.value || undefined)
 const filterDepartments = computed(() => filterDeptData.value?.data ?? [])
@@ -416,7 +416,7 @@ const repDeptId = ref<string | null>(null)
 const repFrom = ref(monthAgo())
 const repTo = ref(today())
 const repClass = computed(() => classes.value.find((c) => c.id === repClassId.value))
-const { data: repSectionData } = useSections(() => repClassId.value || undefined)
+const { data: repSectionData } = useSections(() => repClassId.value || undefined, undefined, true)
 const repSections = computed(() => repSectionData.value?.data ?? [])
 const { data: repDeptData } = useDepartments(() => repClassId.value || undefined)
 const repDepts = computed(() => repDeptData.value?.data ?? [])

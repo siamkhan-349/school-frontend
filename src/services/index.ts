@@ -11,6 +11,10 @@ import type {
   ExamStatus,
   ExamSubject,
   ExamSubjectInput,
+  ExtraFee,
+  ExtraFeeApplyResult,
+  ExtraFeeInput,
+  ExtraFeeRevertResult,
   FeeCatalogItem,
   FeeHead,
   FeeStructureOverviewRow,
@@ -536,20 +540,39 @@ export const paymentService = {
   saveFeeStructure(classId: string, departmentId: string | null, fees: FeeStructureRow[]): Promise<ApiResponse<FeeStructureRow[]>> {
     return apiClient.put<FeeStructureRow[]>('/fees/structure', { classId, departmentId, fees })
   },
-  feeCatalog(classId: string, departmentId?: string | null, merged = false): Promise<ApiResponse<FeeCatalogItem[]>> {
-    return apiClient.get<FeeCatalogItem[]>('/fees/catalog', { params: { classId, departmentId: departmentId ?? '', merged: merged ? 'true' : '' } })
+  feeCatalog(classId: string, departmentId?: string | null, sectionId?: string | null, merged = false): Promise<ApiResponse<FeeCatalogItem[]>> {
+    return apiClient.get<FeeCatalogItem[]>('/fees/catalog', { params: { classId, departmentId: departmentId ?? '', sectionId: sectionId ?? '', merged: merged ? 'true' : '' } })
   },
   feeCatalogOverview(): Promise<ApiResponse<FeeCatalogItem[]>> {
     return apiClient.get<FeeCatalogItem[]>('/fees/catalog/overview')
   },
-  saveFeeCatalog(classId: string, departmentId: string | null, fees: { id?: string; name: string; amount: number; cycleDays?: number; isActive?: boolean }[]): Promise<ApiResponse<FeeCatalogItem[]>> {
-    return apiClient.put<FeeCatalogItem[]>('/fees/catalog', { classId, departmentId, fees })
+  saveFeeCatalog(classId: string, departmentId: string | null, sectionId: string | null, fees: { id?: string; name: string; amount: number; cycleDays?: number; isActive?: boolean }[]): Promise<ApiResponse<FeeCatalogItem[]>> {
+    return apiClient.put<FeeCatalogItem[]>('/fees/catalog', { classId, departmentId, sectionId, fees })
   },
   deleteFeeCatalogItem(id: string): Promise<ApiResponse<null>> {
     return apiClient.delete<null>('/fees/catalog', { params: { id } })
   },
   generateDues(classId?: string, asOf?: string): Promise<ApiResponse<{ created: number; students: number }>> {
     return apiClient.post<{ created: number; students: number }>('/fees/catalog/generate-dues', { classId: classId ?? '', asOf: asOf ?? '' })
+  },
+  /** Ad-hoc charges (exam/tour/picnic) pushed onto current students. */
+  extraFees(): Promise<ApiResponse<ExtraFee[]>> {
+    return apiClient.get<ExtraFee[]>('/fees/extra')
+  },
+  extraFeePreview(params: { classId?: string; departmentId?: string | null; sectionId?: string | null }): Promise<ApiResponse<{ students: number }>> {
+    return apiClient.get<{ students: number }>('/fees/extra/preview', { params })
+  },
+  createExtraFee(input: ExtraFeeInput): Promise<ApiResponse<ExtraFee>> {
+    return apiClient.post<ExtraFee>('/fees/extra', input)
+  },
+  applyExtraFee(id: string): Promise<ApiResponse<ExtraFeeApplyResult>> {
+    return apiClient.post<ExtraFeeApplyResult>(`/fees/extra/${id}/apply`)
+  },
+  revertExtraFee(id: string): Promise<ApiResponse<ExtraFeeRevertResult>> {
+    return apiClient.post<ExtraFeeRevertResult>(`/fees/extra/${id}/revert`)
+  },
+  deleteExtraFee(id: string): Promise<ApiResponse<null>> {
+    return apiClient.delete<null>(`/fees/extra/${id}`)
   },
 }
 
@@ -679,6 +702,24 @@ export const userService = {
   },
   remove(id: string): Promise<ApiResponse<null>> {
     return apiClient.delete<null>(`/coaching/users/${id}`)
+  },
+}
+
+/** The single school-admin login — edited from the super-admin System page. */
+export interface SchoolAdminInput {
+  name: string
+  username: string
+  phone?: string
+  password?: string
+  status?: 'active' | 'inactive'
+}
+
+export const schoolAdminService = {
+  get(): Promise<ApiResponse<AppUser | null>> {
+    return apiClient.get<AppUser | null>('/system/admin')
+  },
+  update(input: SchoolAdminInput): Promise<ApiResponse<AppUser>> {
+    return apiClient.put<AppUser>('/system/admin', input)
   },
 }
 

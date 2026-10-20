@@ -194,7 +194,7 @@ const historyError = computed(() => {
 })
 
 const { data: classData } = useClasses()
-const { data: sectionData } = useSections(() => student.value?.classId || undefined)
+const { data: sectionData } = useSections(() => student.value?.classId || undefined, undefined, true)
 const { data: deptData } = useDepartments(() => student.value?.classId || undefined)
 
 const memberName = computed(() => queryName.value || student.value?.name || studentId.value)

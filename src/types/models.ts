@@ -79,6 +79,8 @@ export interface FeeCatalogItem {
   classLabel: string
   departmentId: string | null
   department: string
+  sectionId: string | null
+  section: string
   name: string
   amount: number
   cycleDays: number
@@ -92,6 +94,55 @@ export interface StudentFeeDue {
   dueFor: string
   source: 'admission' | 'cycle' | 'manual'
   feeItemId: string
+}
+
+export type ExtraFeeStatus = 'draft' | 'applied' | 'cancelled'
+
+/** An ad-hoc charge assigned to current students (exam, tour, picnic…).
+ * Applying it creates one StudentFee row per active student in scope.
+ */
+export interface ExtraFee {
+  id: string
+  name: string
+  amount: number
+  classId: string | null
+  classLabel: string
+  departmentId: string | null
+  department: string
+  sectionId: string | null
+  section: string
+  scope: string
+  dueFor: string
+  notes: string
+  status: ExtraFeeStatus
+  appliedAt: string
+  studentCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ExtraFeeInput {
+  name: string
+  amount: number
+  classId?: string | null
+  departmentId?: string | null
+  sectionId?: string | null
+  dueFor?: string
+  notes?: string
+  applyNow?: boolean
+}
+
+export interface ExtraFeeApplyResult {
+  created: number
+  students: number
+  skipped: number
+  fee: ExtraFee
+}
+
+export interface ExtraFeeRevertResult {
+  removed: number
+  students: number
+  fee: ExtraFee
 }
 
 export interface Subject {
@@ -114,7 +165,9 @@ export interface StudentInput {
   /** Physical ID-card number for reader attendance ("" = no card yet). */
   cardId?: string
   gender: string
-  phone: string
+  bloodGroup?: string
+  /** Legacy field; the admission/edit forms no longer collect a student phone. */
+  phone?: string
   address: string
   roll: string
   classId: string
@@ -192,6 +245,7 @@ export interface Student {
   /** ISO timestamp of the current card issue ("" = none). */
   cardAssignedAt?: string
   gender: string
+  bloodGroup: string
   phone: string
   address: string
   roll: string
@@ -574,6 +628,9 @@ export interface SalaryRecord {
   presentDays?: number
   absentDays?: number
   lateDays?: number
+  /** Late → hajira days cut on this sheet, and the money inside `deduction`. */
+  lateCutDays?: number
+  lateDeduction?: number
   notes?: string
 }
 
@@ -591,6 +648,11 @@ export type LeaveStatus = 'pending' | 'approved' | 'rejected'
   late: number
   leaveDays: number
   leaveDeduction: number
+  /** Late rule result for this month: hajira days + the money they cut. */
+  lateCutDays: number
+  lateDeduction: number
+  /** Leave cut + late cut, pre-filled in the Deduct box. */
+  suggestedDeduction: number
   existingSheetId: string
   existingStatus: string
   existingNet: number
@@ -608,7 +670,7 @@ export interface LeaveRequest {
   note: string
 }
 
-// ---------- user logins (teacher / accountant / parent) ----------
+// ---------- user logins (teacher / accountant / parent; admins reuse the shape) ----------
 export type AppUserRole = 'teacher' | 'accountant' | 'parent'
 export interface AppUserChild {
   id: string
@@ -698,6 +760,10 @@ export interface SchoolSettings {
   staffLateMinutes: number
   /** Per-person staff timing: each teacher's own base time counts for late. */
   staffOwnTimes: boolean
+  /** Every N late staff days cuts one hajira on the monthly sheet (0 = off). */
+  staffLateDaysPerCut: number
+  /** Whether those late days must be consecutive or may be any in the month. */
+  staffLateCutMode: 'month' | 'consecutive'
   /** Fresh-card processing minutes (super-admin only, 0 = off). */
   cardCooldownMinutes: number
   /** Weekly holidays as weekday codes, e.g. ["Fri"]. */

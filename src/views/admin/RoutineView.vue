@@ -22,9 +22,9 @@
             <option value="">All classes</option>
             <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.label }}</option>
           </select>
-          <select v-model="sectionLabel" class="app-input__control" title="Shift / section label across classes">
+          <select v-if="classId && filterSections.length" v-model="sectionId" class="app-input__control">
             <option value="">All sections</option>
-            <option v-for="label in sectionLabels" :key="label" :value="label">Section {{ label }}</option>
+            <option v-for="s in filterSections" :key="s.id" :value="s.id">{{ s.label }}</option>
           </select>
           <select v-if="filterClass?.hasDepartments" v-model="departmentId" class="app-input__control">
             <option :value="null">All departments</option>
@@ -187,8 +187,8 @@ const route = useRoute()
 const router = useRouter()
 const mode = ref<'class' | 'exam'>(route.query.type === 'exam' ? 'exam' : 'class')
 const classId = ref('')
-// Section = shift label (A = morning, B = day): cross-class, class-er sathe bandha na.
-const sectionLabel = ref('')
+// Section belongs to the selected class; no class = no section filter.
+const sectionId = ref('')
 const departmentId = ref<string | null>(null)
 const teacherId = ref('')
 const roomFilter = ref('')
@@ -228,21 +228,10 @@ const { data: classData } = useClasses()
 const classes = computed(() => classData.value?.data ?? [])
 const classLabel = (id: string): string => classes.value.find((c) => c.id === id)?.label ?? id
 
-const { data: sectionData } = useSections(undefined, true)
-const sectionLabelOf = computed(() => {
-  const map = new Map<string, string>()
-  for (const s of sectionData.value?.data ?? []) map.set(s.id, s.label)
-  return map
-})
-const sectionLabels = computed(() => {
-  const set = new Set<string>()
-  for (const s of sectionData.value?.data ?? []) {
-    const label = (s.label || '').trim()
-    if (label) set.add(label)
-  }
-  return [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-})
+const { data: sectionData } = useSections(() => classId.value || undefined, true, true)
+const filterSections = computed(() => sectionData.value?.data ?? [])
 watch(classId, () => {
+  sectionId.value = ''
   departmentId.value = null
 })
 
@@ -279,10 +268,10 @@ const routines = computed(() => {
   return rows
     .filter((r) => !classId.value || r.classId === classId.value)
     .filter((r) => {
-      if (!sectionLabel.value) return true
+      if (!sectionId.value) return true
       // Whole-class period (no section) happens in every section.
       if (!r.sectionId) return true
-      return (sectionLabelOf.value.get(r.sectionId) || '').trim() === sectionLabel.value
+      return r.sectionId === sectionId.value
     })
     .filter((r) => {
       if (departmentId.value == null) return true

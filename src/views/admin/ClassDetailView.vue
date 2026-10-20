@@ -234,7 +234,7 @@ function deptExample(label: string): string {
   if (l.includes('art') || l.includes('human')) return 'History, Geography'
   return 'group subjects'
 }
-const { data: sectionData, isLoading: sectionsLoading } = useSections(() => classId.value || undefined)
+const { data: sectionData, isLoading: sectionsLoading } = useSections(() => classId.value || undefined, undefined, true)
 const sections = computed(() => sectionData.value?.data ?? [])
 
 const departmentLabel = ref('')

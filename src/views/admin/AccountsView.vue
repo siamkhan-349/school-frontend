@@ -5,182 +5,185 @@
         <h1 class="page__title">Accounts — School Fund</h1>
         <p class="muted">Money INTO school / OUT of school. Fee collection and salary payment post here automatically.</p>
       </div>
-      <AppButton type="button" @click="form.open = true">+ Add Entry</AppButton>
+      <RouterLink to="/admin/accounts/new" class="add-entry-link">
+        <AppButton type="button">+ Add Account Entry</AppButton>
+      </RouterLink>
     </div>
 
-    <div class="cards">
-      <AppCard><p class="stat-label">Opening Balance</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value">৳{{ fmt(summary?.openingBalance) }}</p></AppCard>
-      <AppCard><p class="stat-label">Total In (period)</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value stat-value--in">৳{{ fmt(summary?.totalIn) }}</p></AppCard>
-      <AppCard><p class="stat-label">Total Out (period)</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value stat-value--out">৳{{ fmt(summary?.totalOut) }}</p></AppCard>
-      <AppCard><p class="stat-label">Closing Balance</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value">৳{{ fmt(summary?.closingBalance ?? summary?.balance) }}</p></AppCard>
+    <div class="tabs">
+      <button :class="['tab', { 'tab--active': tab === 'ledger' }]" type="button" @click="tab = 'ledger'">
+        Ledger
+      </button>
+      <button :class="['tab', { 'tab--active': tab === 'summary' }]" type="button" @click="tab = 'summary'">
+        Summary
+      </button>
+      <button :class="['tab', { 'tab--active': tab === 'heads' }]" type="button" @click="tab = 'heads'">
+        Heads
+      </button>
+      <button :class="['tab', { 'tab--active': tab === 'opening' }]" type="button" @click="tab = 'opening'">
+        Opening Balance
+      </button>
     </div>
 
-    <AppCard title="Opening Balance (carry-forward)">
-      <p class="muted head-hint">Cash in hand at the start of the year/period — recorded once. Every later report picks it up as Opening automatically. <span v-if="openingCount">There are now {{ openingCount }} opening entries.</span></p>
-      <form class="head-form" @submit.prevent="saveOpening">
-        <input v-model.number="openingForm.amount" type="number" min="0" step="0.01" class="app-input__control" placeholder="Amount (৳)" required />
-        <input v-model="openingForm.date" type="date" class="app-input__control" />
-        <input v-model="openingForm.note" class="app-input__control" placeholder="Note, e.g. Cash in hand Jan 1" />
-        <AppButton type="submit" :loading="savingOpening">Save Opening</AppButton>
-      </form>
-      <p v-if="openingError" class="error">{{ openingError }}</p>
-    </AppCard>
-
-    <AppCard title="Head-wise totals (same date filter)">
-      <p class="muted head-hint">How much came in / went out per head — pick a From/To date above and the figures here follow.</p>
-      <div class="head-cols">
-        <div>
-          <h4 class="head-col-title head-col-title--in">Income by head</h4>
-          <AppSkeleton v-if="sumLoading" variant="table" :rows="3" :cols="3" />
-          <table v-else class="table">
-            <thead><tr><th>Head</th><th>Entries</th><th>Total (৳)</th></tr></thead>
-            <tbody>
-              <tr v-for="r in incomeByHead" :key="r.head">
-                <td>{{ r.head }}</td>
-                <td class="muted">{{ r.count }}</td>
-                <td class="num-in">{{ fmt(r.amount) }}</td>
-              </tr>
-              <tr v-if="!incomeByHead.length"><td colspan="3" class="muted">No income in this period.</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <div>
-          <h4 class="head-col-title head-col-title--out">Expense by head</h4>
-          <AppSkeleton v-if="sumLoading" variant="table" :rows="3" :cols="3" />
-          <table v-else class="table">
-            <thead><tr><th>Head</th><th>Entries</th><th>Total (৳)</th></tr></thead>
-            <tbody>
-              <tr v-for="r in expenseByHead" :key="r.head">
-                <td>{{ r.head }}</td>
-                <td class="muted">{{ r.count }}</td>
-                <td class="num-out">{{ fmt(r.amount) }}</td>
-              </tr>
-              <tr v-if="!expenseByHead.length"><td colspan="3" class="muted">No expense in this period.</td></tr>
-            </tbody>
-          </table>
-        </div>
+    <!-- Ledger -->
+    <template v-if="tab === 'ledger'">
+      <div class="cards">
+        <AppCard><p class="stat-label">Opening Balance</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value">৳{{ fmt(summary?.openingBalance) }}</p></AppCard>
+        <AppCard><p class="stat-label">Total In (period)</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value stat-value--in">৳{{ fmt(summary?.totalIn) }}</p></AppCard>
+        <AppCard><p class="stat-label">Total Out (period)</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value stat-value--out">৳{{ fmt(summary?.totalOut) }}</p></AppCard>
+        <AppCard><p class="stat-label">Closing Balance</p><AppSkeleton v-if="sumLoading" variant="text" width="72px" /><p v-else class="stat-value">৳{{ fmt(summary?.closingBalance ?? summary?.balance) }}</p></AppCard>
       </div>
-    </AppCard>
 
-    <AppCard title="Income / Expense Heads">
-      <p class="muted head-hint">Heads can differ per school — create your own here. These are Accounts-only<template v-if="school.hasModule('payment')"> and unrelated to student fee heads (those live under <RouterLink to="/admin/fees">Fee Management</RouterLink>)</template>.</p>
-      <form class="head-form" @submit.prevent="saveHead">
-        <select v-model="headForm.kind" class="app-input__control">
-          <option value="income">Income</option>
-          <option value="expense">Expense</option>
-        </select>
-        <input v-model="headForm.name" class="app-input__control" placeholder="New head name, e.g. Donation / Electricity bill" required />
-        <AppButton type="submit" :loading="savingHead">+ Add Head</AppButton>
-      </form>
-      <p v-if="headFormError" class="error">{{ headFormError }}</p>
-      <div class="head-cols">
-        <div>
-          <h4 class="head-col-title">Income heads</h4>
-          <AppSkeleton v-if="allHeadsLoading" variant="list" :rows="3" />
-          <ul v-else class="head-list">
-            <li v-for="h in incomeHeads" :key="h.id">
-              <span>{{ h.name }}</span>
-              <button class="link-btn link-btn--danger" type="button" @click="removeHead(h.id, h.name)">Delete</button>
-            </li>
-            <li v-if="!incomeHeads.length" class="muted">No income heads yet.</li>
-          </ul>
+      <AppCard title="Ledger">
+        <FilterPanel>
+          <select v-model="kindFilter" class="app-input__control">
+            <option value="">All</option>
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+          <input type="date" class="app-input__control" title="From" :value="from" @change="from = ($event.target as HTMLInputElement).value || undefined" />
+          <input type="date" class="app-input__control" title="To" :value="to" @change="to = ($event.target as HTMLInputElement).value || undefined" />
+          <input v-model="search" class="app-input__control" placeholder="Search head / note…" />
+          <AppButton variant="ghost" type="button" :disabled="!rows.length" @click="exportCsv">CSV</AppButton>
+        </FilterPanel>
+
+        <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="6" />
+        <p v-else-if="isError" class="error">Failed to load ledger.</p>
+        <table v-else class="table" :class="{ 'is-fetching': isFetching && !isLoading }">
+          <thead>
+            <tr><th>Date</th><th>Head</th><th>In (৳)</th><th>Out (৳)</th><th>Note</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="e in pagedRows" :key="e.id">
+              <td>{{ e.date }}</td>
+              <td>{{ e.head }} <span v-if="e.refType !== 'manual'" class="auto-tag">auto</span></td>
+              <td class="num-in">{{ e.kind === 'income' ? fmt(e.amount) : '—' }}</td>
+              <td class="num-out">{{ e.kind === 'expense' ? fmt(e.amount) : '—' }}</td>
+              <td class="muted">{{ e.note || '—' }}</td>
+              <td class="row-actions-cell">
+                <button
+                  v-if="e.refType === 'manual'"
+                  class="link-btn link-btn--danger"
+                  type="button"
+                  @click="askRemove(e.id, e.head)"
+                >
+                  Delete
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!pagedRows.length">
+              <td colspan="6" class="muted">No entries yet.</td>
+            </tr>
+          </tbody>
+          <tfoot v-if="pagedRows.length">
+            <tr class="totals-row">
+              <td colspan="2"><strong>Total (this page)</strong></td>
+              <td><strong>{{ fmt(pagedIn) }}</strong></td>
+              <td><strong>{{ fmt(pagedOut) }}</strong></td>
+              <td colspan="2"></td>
+            </tr>
+          </tfoot>
+        </table>
+        <AppPagination v-model:page="page" v-model:per-page="perPage" :total="rows.length" :busy="isFetching" />
+      </AppCard>
+    </template>
+
+    <!-- Summary -->
+    <template v-else-if="tab === 'summary'">
+      <AppCard title="Head-wise totals">
+        <p class="muted head-hint">How much came in / went out per head for the selected period.</p>
+        <FilterPanel>
+          <input type="date" class="app-input__control" title="From" :value="summaryFrom" @change="summaryFrom = ($event.target as HTMLInputElement).value || undefined" />
+          <input type="date" class="app-input__control" title="To" :value="summaryTo" @change="summaryTo = ($event.target as HTMLInputElement).value || undefined" />
+        </FilterPanel>
+        <div class="head-cols">
+          <div>
+            <h4 class="head-col-title head-col-title--in">Income by head</h4>
+            <AppSkeleton v-if="summaryLoading" variant="table" :rows="3" :cols="3" />
+            <table v-else class="table">
+              <thead><tr><th>Head</th><th>Entries</th><th>Total (৳)</th></tr></thead>
+              <tbody>
+                <tr v-for="r in incomeByHead" :key="r.head">
+                  <td>{{ r.head }}</td>
+                  <td class="muted">{{ r.count }}</td>
+                  <td class="num-in">{{ fmt(r.amount) }}</td>
+                </tr>
+                <tr v-if="!incomeByHead.length"><td colspan="3" class="muted">No income in this period.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h4 class="head-col-title head-col-title--out">Expense by head</h4>
+            <AppSkeleton v-if="summaryLoading" variant="table" :rows="3" :cols="3" />
+            <table v-else class="table">
+              <thead><tr><th>Head</th><th>Entries</th><th>Total (৳)</th></tr></thead>
+              <tbody>
+                <tr v-for="r in expenseByHead" :key="r.head">
+                  <td>{{ r.head }}</td>
+                  <td class="muted">{{ r.count }}</td>
+                  <td class="num-out">{{ fmt(r.amount) }}</td>
+                </tr>
+                <tr v-if="!expenseByHead.length"><td colspan="3" class="muted">No expense in this period.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div>
-          <h4 class="head-col-title">Expense heads</h4>
-          <AppSkeleton v-if="allHeadsLoading" variant="list" :rows="3" />
-          <ul v-else class="head-list">
-            <li v-for="h in expenseHeads" :key="h.id">
-              <span>{{ h.name }}</span>
-              <button class="link-btn link-btn--danger" type="button" @click="removeHead(h.id, h.name)">Delete</button>
-            </li>
-            <li v-if="!expenseHeads.length" class="muted">No expense heads yet.</li>
-          </ul>
+      </AppCard>
+    </template>
+
+    <!-- Heads -->
+    <template v-else-if="tab === 'heads'">
+      <AppCard title="Income / Expense Heads">
+        <p class="muted head-hint">Heads can differ per school — create your own here. These are Accounts-only<template v-if="school.hasModule('payment')"> and unrelated to student fee heads (those live under <RouterLink to="/admin/fees">Fee Management</RouterLink>)</template>.</p>
+        <form class="head-form" @submit.prevent="saveHead">
+          <select v-model="headForm.kind" class="app-input__control">
+            <option value="income">Income</option>
+            <option value="expense">Expense</option>
+          </select>
+          <input v-model="headForm.name" class="app-input__control" placeholder="New head name, e.g. Donation / Electricity bill" required />
+          <AppButton type="submit" :loading="savingHead">+ Add Head</AppButton>
+        </form>
+        <p v-if="headFormError" class="error">{{ headFormError }}</p>
+        <div class="head-cols">
+          <div>
+            <h4 class="head-col-title">Income heads</h4>
+            <AppSkeleton v-if="allHeadsLoading" variant="list" :rows="3" />
+            <ul v-else class="head-list">
+              <li v-for="h in incomeHeads" :key="h.id">
+                <span>{{ h.name }}</span>
+                <button class="link-btn link-btn--danger" type="button" @click="removeHead(h.id, h.name)">Delete</button>
+              </li>
+              <li v-if="!incomeHeads.length" class="muted">No income heads yet.</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="head-col-title">Expense heads</h4>
+            <AppSkeleton v-if="allHeadsLoading" variant="list" :rows="3" />
+            <ul v-else class="head-list">
+              <li v-for="h in expenseHeads" :key="h.id">
+                <span>{{ h.name }}</span>
+                <button class="link-btn link-btn--danger" type="button" @click="removeHead(h.id, h.name)">Delete</button>
+              </li>
+              <li v-if="!expenseHeads.length" class="muted">No expense heads yet.</li>
+            </ul>
+          </div>
         </div>
-      </div>
-    </AppCard>
+      </AppCard>
+    </template>
 
-    <AppCard>
-      <FilterPanel>
-        <select v-model="kindFilter" class="app-input__control">
-          <option value="">All</option>
-          <option value="income">Income</option>
-          <option value="expense">Expense</option>
-        </select>
-        <input type="date" class="app-input__control" title="From" :value="from" @change="from = ($event.target as HTMLInputElement).value || undefined" />
-        <input type="date" class="app-input__control" title="To" :value="to" @change="to = ($event.target as HTMLInputElement).value || undefined" />
-        <input v-model="search" class="app-input__control" placeholder="Search head / note…" />
-        <AppButton variant="ghost" type="button" :disabled="!rows.length" @click="exportCsv">CSV</AppButton>
-      </FilterPanel>
-
-      <AppSkeleton v-if="isLoading" variant="table" :rows="8" :cols="6" />
-      <p v-else-if="isError" class="error">Failed to load ledger.</p>
-      <table v-else class="table" :class="{ 'is-fetching': isFetching && !isLoading }">
-        <thead>
-          <tr><th>Date</th><th>Head</th><th>In (৳)</th><th>Out (৳)</th><th>Note</th><th></th></tr>
-        </thead>
-        <tbody>
-          <tr v-for="e in pagedRows" :key="e.id">
-            <td>{{ e.date }}</td>
-            <td>{{ e.head }} <span v-if="e.refType !== 'manual'" class="auto-tag">auto</span></td>
-            <td class="num-in">{{ e.kind === 'income' ? fmt(e.amount) : '—' }}</td>
-            <td class="num-out">{{ e.kind === 'expense' ? fmt(e.amount) : '—' }}</td>
-            <td class="muted">{{ e.note || '—' }}</td>
-            <td class="row-actions-cell">
-              <button
-                v-if="e.refType === 'manual'"
-                class="link-btn link-btn--danger"
-                type="button"
-                @click="askRemove(e.id, e.head)"
-              >
-                Delete
-              </button>
-            </td>
-          </tr>
-          <tr v-if="!pagedRows.length">
-            <td colspan="6" class="muted">No entries yet.</td>
-          </tr>
-        </tbody>
-        <tfoot v-if="pagedRows.length">
-          <tr class="totals-row">
-            <td colspan="2"><strong>Total (this page)</strong></td>
-            <td><strong>{{ fmt(pagedIn) }}</strong></td>
-            <td><strong>{{ fmt(pagedOut) }}</strong></td>
-            <td colspan="2"></td>
-          </tr>
-        </tfoot>
-      </table>
-      <AppPagination v-model:page="page" v-model:per-page="perPage" :total="rows.length" :busy="isFetching" />
-    </AppCard>
-
-    <Teleport to="body">
-      <div v-if="form.open" class="modal-backdrop" @click.self="form.open = false">
-        <div class="modal modal--sm" role="dialog" aria-modal="true">
-          <h3 class="modal__title">Add {{ form.kind === 'income' ? 'Income' : 'Expense' }}</h3>
-          <form class="form" @submit.prevent="saveEntry">
-            <div class="kind-tabs" role="tablist" aria-label="Entry type">
-              <button type="button" :class="['kind-tab', { 'kind-tab--active': form.kind === 'income' }]" @click="form.kind = 'income'; form.head = ''">Income</button>
-              <button type="button" :class="['kind-tab', { 'kind-tab--active': form.kind === 'expense' }]" @click="form.kind = 'expense'; form.head = ''">Expense</button>
-            </div>
-            <label>Head
-              <select v-model="form.head" class="app-input__control" required>
-                <option value="">Select head…</option>
-                <option v-for="h in headOptions" :key="h.id" :value="h.name">{{ h.name }}</option>
-                <option value="__custom">Other (type below)…</option>
-              </select>
-            </label>
-            <label v-if="form.head === '__custom'">Custom head<input v-model="form.customHead" class="app-input__control" placeholder="Enter head name" required /></label>
-            <label>Amount (৳)<input v-model.number="form.amount" type="number" min="0" step="0.01" class="app-input__control" required /></label>
-            <label>Date<input v-model="form.date" type="date" class="app-input__control" /></label>
-            <label>Note<input v-model="form.note" class="app-input__control" placeholder="Optional note" /></label>
-            <p v-if="formError" class="error">{{ formError }}</p>
-            <div class="form-actions">
-              <AppButton variant="ghost" type="button" @click="form.open = false">Cancel</AppButton>
-              <AppButton type="submit" :loading="saving">Save</AppButton>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
+    <!-- Opening -->
+    <template v-else>
+      <AppCard title="Opening Balance (carry-forward)">
+        <p class="muted head-hint">Cash in hand at the start of the year/period — recorded once. Every later report picks it up as Opening automatically. <span v-if="openingCount">There are now {{ openingCount }} opening entries.</span></p>
+        <form class="head-form" @submit.prevent="saveOpening">
+          <input v-model.number="openingForm.amount" type="number" min="0" step="0.01" class="app-input__control" placeholder="Amount (৳)" required />
+          <input v-model="openingForm.date" type="date" class="app-input__control" />
+          <input v-model="openingForm.note" class="app-input__control" placeholder="Note, e.g. Cash in hand Jan 1" />
+          <AppButton type="submit" :loading="savingOpening">Save Opening</AppButton>
+        </form>
+        <p v-if="openingError" class="error">{{ openingError }}</p>
+      </AppCard>
+    </template>
 
     <AppConfirmDialog
       :open="confirm.open"
@@ -210,12 +213,15 @@ const school = useSchoolStore()
 const toast = useToast()
 const num = (v: unknown): number => Number(v) || 0
 const fmt = (v: unknown): string => num(v).toLocaleString('en-IN')
-const todayStr = (): string => new Date().toISOString().slice(0, 10)
 
+type AccountTab = 'ledger' | 'summary' | 'heads' | 'opening'
+const tab = ref<AccountTab>('ledger')
 const kindFilter = ref('')
 const search = ref('')
 const from = ref<string | undefined>(undefined)
 const to = ref<string | undefined>(undefined)
+const summaryFrom = ref<string | undefined>(undefined)
+const summaryTo = ref<string | undefined>(undefined)
 
 const params = computed(() => ({
   kind: kindFilter.value || undefined,
@@ -248,14 +254,24 @@ function exportCsv(): void {
 const sumParams = computed(() => ({ from: from.value, to: to.value }))
 const { data: sumData, isLoading: sumLoading } = useLedgerSummary(sumParams)
 const summary = computed(() => sumData.value?.data)
-const incomeByHead = computed(() => (summary.value?.byHead ?? []).filter((r) => r.kind === 'income'))
-const expenseByHead = computed(() => (summary.value?.byHead ?? []).filter((r) => r.kind === 'expense'))
-const openingCount = computed(() => (summary.value?.byHead ?? []).filter((r) => r.head === 'Opening Balance').reduce((s, r) => s + r.count, 0))
+
+// Head-wise totals has its own period so switching tabs doesn't silently
+// change the ledger's filter (or vice versa).
+const summaryParams = computed(() => ({ from: summaryFrom.value, to: summaryTo.value }))
+const { data: headSummaryData, isLoading: summaryLoading } = useLedgerSummary(summaryParams)
+const headSummary = computed(() => headSummaryData.value?.data)
+const incomeByHead = computed(() => (headSummary.value?.byHead ?? []).filter((r) => r.kind === 'income'))
+const expenseByHead = computed(() => (headSummary.value?.byHead ?? []).filter((r) => r.kind === 'expense'))
+
+// Opening count is all-time, not tied to either tab's date filter.
+const { data: allSummaryData } = useLedgerSummary()
+const openingCount = computed(() => (allSummaryData.value?.data.byHead ?? []).filter((r) => r.head === 'Opening Balance').reduce((s, r) => s + r.count, 0))
 
 // Opening balance — one-time carry-forward (saved as income / Opening Balance head).
 const openingForm = reactive({ amount: 0, date: '', note: '' })
 const openingError = ref('')
 const savingOpening = ref(false)
+const { mutateAsync: createEntry } = useCreateLedgerEntry()
 
 async function saveOpening(): Promise<void> {
   openingError.value = ''
@@ -280,14 +296,6 @@ async function saveOpening(): Promise<void> {
     savingOpening.value = false
   }
 }
-
-const form = reactive({
-  open: false,
-  kind: 'expense' as 'income' | 'expense',
-  head: '', customHead: '', amount: 0, date: todayStr(), note: '',
-})
-const { data: headData } = useLedgerHeads(() => form.kind)
-const headOptions = computed(() => headData.value?.data ?? [])
 
 // Heads manager — school-wise custom income/expense heads (separate from fee heads).
 const { data: allHeadsData, isLoading: allHeadsLoading } = useLedgerHeads()
@@ -320,39 +328,6 @@ async function saveHead(): Promise<void> {
 async function removeHead(id: number, name: string): Promise<void> {
   confirm.value = { open: true, kind: 'head', id, message: `Delete head "${name}"?` }
 }
-const formError = ref('')
-const saving = ref(false)
-const { mutateAsync: createEntry } = useCreateLedgerEntry()
-
-async function saveEntry(): Promise<void> {
-  formError.value = ''
-  const head = form.head === '__custom' ? form.customHead.trim() : form.head
-  if (!head) {
-    formError.value = 'Head is required.'
-    return
-  }
-  if (!(num(form.amount) > 0)) {
-    formError.value = 'Amount must be greater than 0.'
-    return
-  }
-  saving.value = true
-  try {
-    await createEntry({
-      kind: form.kind,
-      head,
-      amount: num(form.amount),
-      date: form.date || undefined,
-      note: form.note.trim() || undefined,
-    })
-    toast.success(form.kind === 'income' ? 'Income saved' : 'Expense saved')
-    Object.assign(form, { open: false, head: '', customHead: '', amount: 0, date: todayStr(), note: '' })
-  } catch (e) {
-    formError.value = e instanceof Error ? e.message : 'Save failed'
-  } finally {
-    saving.value = false
-  }
-}
-
 const confirm = ref({
   open: false,
   kind: 'entry' as 'entry' | 'head',
@@ -393,11 +368,35 @@ async function doRemove(): Promise<void> {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
   margin-bottom: var(--spacing-lg);
 }
 .page__title {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
+}
+.add-entry-link {
+  text-decoration: none;
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+.tab {
+  height: 36px;
+  padding: 0 var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.tab--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast);
 }
 .muted {
   color: var(--color-text-muted);
@@ -479,39 +478,6 @@ async function doRemove(): Promise<void> {
   border-top: 2px solid var(--color-border);
   background: var(--color-background);
 }
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(16, 24, 40, 0.45);
-  display: grid;
-  place-items: center;
-  z-index: 60;
-  padding: var(--spacing-lg);
-}
-.modal--sm {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: var(--spacing-lg);
-  width: min(440px, 100%);
-}
-.modal__title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  margin-bottom: var(--spacing-md);
-}
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-.form label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-  font-size: var(--font-size-sm);
-}
 .head-hint {
   font-size: var(--font-size-sm);
   margin: 0 0 var(--spacing-md);
@@ -562,36 +528,5 @@ async function doRemove(): Promise<void> {
   padding: var(--spacing-xs) 0;
   border-bottom: 1px solid var(--color-border);
   font-size: var(--font-size-sm);
-}
-.kind-tabs {
-  display: inline-flex;
-  gap: 4px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 4px;
-  align-self: flex-start;
-}
-.kind-tab {
-  background: none;
-  border: none;
-  padding: 6px 14px;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-.kind-tab--active {
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-weight: var(--font-weight-semibold);
-  box-shadow: var(--shadow-sm);
-}
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-sm);
-  margin-top: var(--spacing-sm);
 }
 </style>

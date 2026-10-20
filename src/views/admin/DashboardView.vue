@@ -9,7 +9,13 @@
       </div>
       <div class="admin-dashboard__actions">
         <RouterLink v-if="school.hasModule('payment')" to="/admin/fees/collect" class="action-link">
-          <AppButton variant="ghost" type="button">Collect Fee</AppButton>
+          <AppButton variant="ghost" type="button">Student Fee</AppButton>
+        </RouterLink>
+        <RouterLink v-if="school.hasModule('payment')" to="/admin/fees/dues" class="action-link">
+          <AppButton variant="ghost" type="button">Due Payment</AppButton>
+        </RouterLink>
+        <RouterLink v-if="school.hasModule('accounts')" to="/admin/accounts/new" class="action-link">
+          <AppButton variant="ghost" type="button">+ Add Account Entry</AppButton>
         </RouterLink>
         <RouterLink to="/admin/students/new" class="action-link">
           <AppButton type="button">+ Admit Student</AppButton>

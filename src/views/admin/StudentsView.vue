@@ -22,7 +22,7 @@
           <option value="">All classes</option>
           <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.label }}</option>
         </select>
-        <select v-model="filters.sectionId" class="app-input__control" :disabled="!filters.classId">
+        <select v-if="filters.classId" v-model="filters.sectionId" class="app-input__control">
           <option value="">All sections</option>
           <option v-for="s in sections" :key="s.id" :value="s.id">{{ s.label }}</option>
         </select>
@@ -193,7 +193,7 @@ const { data: classData } = useClasses()
 const classes = computed(() => classData.value?.data ?? [])
 const classLabel = (id: string): string => classes.value.find((c) => c.id === id)?.label ?? id
 
-const { data: sectionData } = useSections(() => filters.classId || undefined)
+const { data: sectionData } = useSections(() => filters.classId || undefined, undefined, true)
 const sections = computed(() => sectionData.value?.data ?? [])
 watch(() => filters.classId, () => {
   filters.sectionId = ''
@@ -257,8 +257,8 @@ async function exportCsv(): Promise<void> {
     const showDue = school.hasModule('payment')
     downloadCsv(
       `students-${Date.now()}.csv`,
-      ['SL', 'Name', 'Roll', 'Class', 'Dept', 'Phone', 'Guardian', ...(showDue ? ['Due (Tk)'] : []), 'Status'],
-      all.map((s, i) => [i + 1, s.name, String(s.roll ?? ''), classLabel(s.classId), deptLabel(s.departmentId), s.phone || '', s.guardianName || '', ...(showDue ? [Number(s.dueAmount) || 0] : []), studentStatusLabel(s.status)]),
+      ['SL', 'Name', 'Roll', 'Class', 'Dept', 'Guardian', ...(showDue ? ['Due (Tk)'] : []), 'Status'],
+      all.map((s, i) => [i + 1, s.name, String(s.roll ?? ''), classLabel(s.classId), deptLabel(s.departmentId), s.guardianName || '', ...(showDue ? [Number(s.dueAmount) || 0] : []), studentStatusLabel(s.status)]),
     )
     toast.success(`${all.length} students exported`)
   } catch (e) {

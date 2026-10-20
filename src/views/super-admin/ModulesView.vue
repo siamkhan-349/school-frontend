@@ -221,6 +221,21 @@
               sheet; 0 = late right at the start. The start is the school start — or the person's
               own base time while per-person timing is on.
             </p>
+            <hr class="modal__divider" />
+            <label>Late days for one hajira (0 = off)
+              <input v-model.number="staffLateDaysPerCut" type="number" min="0" max="31" class="app-input__control" />
+            </label>
+            <label>Count late days as
+              <select v-model="staffLateCutMode" class="app-input__control">
+                <option value="month">Any days in the month</option>
+                <option value="consecutive">Consecutive late days</option>
+              </select>
+            </label>
+            <p class="modal__hint">
+              On the monthly salary sheet every N late days cuts one day's pay (one hajira) —
+              6 late = 2 hajira, 9 = 3, and so on. "Any days" counts them anywhere in the
+              month; "consecutive" needs them back-to-back (holidays skipped). 0 turns the cut off.
+            </p>
             <div class="form-actions">
               <AppButton variant="ghost" type="button" :disabled="savingSettings" @click="staffLateOpen = false">Cancel</AppButton>
               <AppButton type="submit" :loading="savingSettings">Save</AppButton>
@@ -385,12 +400,17 @@ async function saveCardSettings(): Promise<void> {
 const staffLateOpen = ref(false)
 const staffLateMinutes = ref(0)
 const staffOwnTimes = ref(false)
+const staffLateDaysPerCut = ref(3)
+const staffLateCutMode = ref<'month' | 'consecutive'>('month')
 watch(
   settingsData,
   (res) => {
     if (res?.data) {
       staffLateMinutes.value = Number(res.data.staffLateMinutes ?? 0) || 0
       staffOwnTimes.value = Boolean(res.data.staffOwnTimes)
+      staffLateDaysPerCut.value = Number(res.data.staffLateDaysPerCut ?? 3) || 0
+      staffLateCutMode.value =
+        res.data.staffLateCutMode === 'consecutive' ? 'consecutive' : 'month'
     }
   },
   { immediate: true },
@@ -398,19 +418,32 @@ watch(
 function openStaffLate(): void {
   staffLateMinutes.value = Number(settingsData.value?.data.staffLateMinutes ?? 0) || 0
   staffOwnTimes.value = Boolean(settingsData.value?.data.staffOwnTimes)
+  staffLateDaysPerCut.value = Number(settingsData.value?.data.staffLateDaysPerCut ?? 3) || 0
+  staffLateCutMode.value =
+    settingsData.value?.data.staffLateCutMode === 'consecutive' ? 'consecutive' : 'month'
   staffLateOpen.value = true
 }
 async function saveStaffLate(): Promise<void> {
   const minutes = Number(staffLateMinutes.value) || 0
   const ownTimes = staffOwnTimes.value
+  const daysPerCut = Math.max(0, Math.min(31, Math.round(Number(staffLateDaysPerCut.value) || 0)))
+  const cutMode = staffLateCutMode.value
   try {
-    await updateSettings({ staffLateMinutes: minutes, staffOwnTimes: ownTimes })
+    await updateSettings({
+      staffLateMinutes: minutes,
+      staffOwnTimes: ownTimes,
+      staffLateDaysPerCut: daysPerCut,
+      staffLateCutMode: cutMode,
+    })
     await school.refresh()
     staffLateOpen.value = false
+    const cutText = daysPerCut > 0
+      ? `${daysPerCut} late = 1 hajira (${cutMode === 'consecutive' ? 'consecutive' : 'any days in the month'})`
+      : 'late cut off'
     toast.success(
       ownTimes
-        ? `Per-person timing on — late after the person's base time + ${minutes} min`
-        : `Staff late rule saved — late after ${minutes} min`,
+        ? `Per-person timing on — late after the person's base time + ${minutes} min; ${cutText}`
+        : `Staff late rule saved — late after ${minutes} min; ${cutText}`,
     )
   } catch {
     toast.error('Staff late rule update failed')

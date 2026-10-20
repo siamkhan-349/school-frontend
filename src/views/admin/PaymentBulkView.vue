@@ -10,7 +10,7 @@
 
     <AppCard>
       <label class="paste-label">CSV rows
-        <textarea v-model="raw" rows="8" class="app-input__control" placeholder="12, মাসিক বেতন, 500, 0, 500, 2026-10-01" />
+        <textarea v-model="raw" rows="8" class="app-input__control" placeholder="12, Monthly Fee, 500, 0, 500, 2026-10-01" />
       </label>
       <p class="muted">{{ parsed.length }} rows ready — {{ errorRows }} bad rows will be skipped.</p>
       <table v-if="parsed.length" class="table">

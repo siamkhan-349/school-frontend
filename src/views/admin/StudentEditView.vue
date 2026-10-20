@@ -36,7 +36,7 @@
           <label v-if="school.hasModule('attendance')">Card ID (optional)
             <input v-model="form.cardId" class="app-input__control" placeholder="e.g. RFID card number" />
           </label>
-          <label>Guardian name
+          <label>Guardian name (optional)
             <input v-model="form.guardianName" class="app-input__control" />
           </label>
           <label>Guardian phone*
@@ -60,11 +60,16 @@
               <template v-else>Remove</template>
             </AppButton>
           </div>
-          <label>Date of birth<input v-model="form.dateOfBirth" type="date" class="app-input__control" /></label>
-          <label>Student phone<input v-model="form.phone" class="app-input__control" /></label>
-          <label>Guardian phone 2<input v-model="form.guardianPhone2" class="app-input__control" /></label>
-          <label>Previous institute<input v-model="form.instituteName" class="app-input__control" /></label>
-          <label>Address<input v-model="form.address" class="app-input__control" /></label>
+          <label>Date of birth (optional)<input v-model="form.dateOfBirth" type="date" class="app-input__control" /></label>
+          <label>Blood group (optional)
+            <select v-model="form.bloodGroup" class="app-input__control">
+              <option value="">Select blood group</option>
+              <option v-for="group in BLOOD_GROUP_OPTIONS" :key="group" :value="group">{{ group }}</option>
+            </select>
+          </label>
+          <label>Guardian phone 2 (optional)<input v-model="form.guardianPhone2" class="app-input__control" /></label>
+          <label>Previous institute (optional)<input v-model="form.instituteName" class="app-input__control" /></label>
+          <label>Address (optional)<input v-model="form.address" class="app-input__control" /></label>
         </div>
       </AppCard>
 
@@ -77,7 +82,7 @@
             </select>
             <span v-if="errors.classId" class="field-error">{{ errors.classId }}</span>
           </label>
-          <label>Section
+          <label v-if="form.classId">Section
             <select v-model="form.sectionId" class="app-input__control">
               <option value="">No section</option>
               <option v-for="s in editSections" :key="s.id" :value="s.id">{{ s.label }}</option>
@@ -144,6 +149,7 @@ import {
 import { useToast } from '@/composables/useToast'
 import { useSchoolStore } from '@/stores/school'
 import { studentService } from '@/services'
+import { BLOOD_GROUP_OPTIONS } from '@/utils/bloodGroup'
 import { STUDENT_STATUS_OPTIONS } from '@/utils/studentStatus'
 import type { StudentStatus } from '@/types/models'
 
@@ -164,7 +170,7 @@ const form = reactive({
   name: '',
   cardId: '',
   gender: '',
-  phone: '',
+  bloodGroup: '',
   address: '',
   roll: '',
   guardianName: '',
@@ -187,7 +193,7 @@ watch(student, (s) => {
   form.name = s.name ?? ''
   form.cardId = s.cardId ?? ''
   form.gender = s.gender ?? ''
-  form.phone = s.phone ?? ''
+  form.bloodGroup = s.bloodGroup ?? ''
   form.address = s.address ?? ''
   form.roll = s.roll ?? ''
   form.guardianName = s.guardianName ?? ''
@@ -234,7 +240,7 @@ watch(visibleEditLabels, (labels) => {
     form.selectedSubjects = form.selectedSubjects.filter((l) => keep.has(l))
   }
 })
-const { data: editSectionData } = useSections(() => form.classId || undefined)
+const { data: editSectionData } = useSections(() => form.classId || undefined, undefined, true)
 const editSections = computed(() => editSectionData.value?.data ?? [])
 watch(editSections, (list) => {
   if (!filled.value) return
@@ -320,7 +326,7 @@ async function save(): Promise<void> {
         name: form.name.trim(),
         cardId: form.cardId.trim(),
         gender: form.gender,
-        phone: form.phone.trim(),
+        bloodGroup: form.bloodGroup,
         address: form.address.trim(),
         roll: form.roll.trim(),
         classId: form.classId,

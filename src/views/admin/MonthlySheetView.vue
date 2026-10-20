@@ -59,7 +59,9 @@
           <thead>
             <tr>
               <th>#</th><th>Teacher</th><th>Basic</th><th>Allow</th><th>Bonus</th>
-              <th>Deduct</th><th>Net (৳)</th><th>Present</th><th>Absent</th><th>Leave cut</th>
+              <th>Deduct</th><th>Net (৳)</th><th>Present</th><th>Absent</th>
+              <th title="Hajira days cut by the staff late rule — set in Super Admin → Payroll → Late settings">Late cut</th>
+              <th>Leave cut</th>
             </tr>
           </thead>
           <tbody>
@@ -72,29 +74,35 @@
               <td>
                 <input v-model.number="r.deduction" type="number" min="0" class="cell-input" />
                 <button
-                  v-if="r.leaveDeduction > 0 && r.deduction !== r.leaveDeduction"
+                  v-if="r.suggestedDeduction > 0 && r.deduction !== r.suggestedDeduction"
                   class="link-btn tiny"
                   type="button"
-                  :title="`Leave: ${r.leaveDays} day(s) × ৳${r.perDay}`"
-                  @click="r.deduction = r.leaveDeduction"
+                  :title="`Leave: ${r.leaveDays} day(s) + late: ${r.lateCutDays} hajira, both × ৳${r.perDay}`"
+                  @click="r.deduction = r.suggestedDeduction"
                 >
-                  Use ৳{{ r.leaveDeduction }}
+                  Use ৳{{ r.suggestedDeduction }}
                 </button>
               </td>
               <td><strong>{{ rowNet(r) }}</strong></td>
               <td>{{ r.present }}</td>
               <td>{{ r.absent }}</td>
-              <td class="muted">{{ r.leaveDays }}d</td>
+              <td class="muted" :title="`${r.late} late day(s) → ${r.lateCutDays} hajira`">
+                {{ r.lateCutDays > 0 ? `${r.lateCutDays}d` : '—' }}
+              </td>
+              <td class="muted">{{ r.leaveDays > 0 ? `${r.leaveDays}d` : '—' }}</td>
             </tr>
           </tbody>
           <tfoot>
             <tr class="totals-row">
               <td colspan="6"><strong>Total (new)</strong></td>
               <td><strong>৳{{ draftTotalNet }}</strong></td>
-              <td colspan="3"></td>
+              <td colspan="4"></td>
             </tr>
           </tfoot>
         </table>
+        <p class="muted small">
+          Deduct starts with the leave cut + late cut; change it per row if the school has a different rule.
+        </p>
         <p v-if="saveError" class="error">{{ saveError }}</p>
         <p v-if="saveResult" class="muted">{{ saveResult }}</p>
       </AppCard>
@@ -238,7 +246,7 @@ async function loadDraft(): Promise<void> {
     draft.rows = (res.data?.rows ?? []).map((r) => ({
       ...r,
       bonus: 0,
-      deduction: r.leaveDeduction,
+      deduction: r.suggestedDeduction,
     }))
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : 'Failed to load draft'

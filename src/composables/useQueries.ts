@@ -14,6 +14,7 @@ import {
   payrollService,
   routineService,
   salaryTypeService,
+  schoolAdminService,
   settingsService,
   smsService,
   studentService,
@@ -22,10 +23,11 @@ import {
   teacherSubjectService,
   userService,
   type AppUserInput,
+  type SchoolAdminInput,
 } from '@/services'
 import type { StudentBulkRecord, StudentInput, StudentStatus, TeacherInput } from '@/types/models'
 import type { ListParams } from '@/types/api'
-import type { AttendanceMark, ExamStatus, ExamSubjectInput, LeaveRequest, LeaveStatus, RoutineInput, SalaryRecord, SchoolEvent, SubjectConfigInput, SubjectMarkInput, TeacherExamMarkInput } from '@/types/models'
+import type { AttendanceMark, ExamStatus, ExamSubjectInput, ExtraFeeInput, LeaveRequest, LeaveStatus, RoutineInput, SalaryRecord, SchoolEvent, SubjectConfigInput, SubjectMarkInput, TeacherExamMarkInput } from '@/types/models'
 
 type ParamSource = ListParams | Ref<ListParams> | (() => ListParams)
 
@@ -221,11 +223,17 @@ function resolveId(source?: IdSource): string | undefined {
   return isRef(source) ? (source as Ref<string | undefined>).value : (source as string | undefined)
 }
 
-export function useSections(source?: IdSource, withStudents?: boolean) {
-  const key = computed(() => ['sections', resolveId(source) ?? 'all', withStudents ? 'nonempty' : 'all'])
+export function useSections(source?: IdSource, withStudents?: boolean, requireClass = false) {
+  const classId = computed(() => resolveId(source))
+  const key = computed(() => [
+    'sections',
+    classId.value ?? (requireClass ? 'none' : 'all'),
+    withStudents ? 'nonempty' : 'all',
+  ])
   return useQuery({
     queryKey: key,
-    queryFn: () => academicService.sections(resolveId(source), withStudents),
+    queryFn: () => academicService.sections(classId.value, withStudents),
+    enabled: computed(() => !requireClass || !!classId.value),
   })
 }
 
@@ -810,11 +818,29 @@ export function useSaveFeeStructure() {
   })
 }
 
-export function useFeeCatalog(classId: MaybeReactive<string>, departmentId: MaybeReactive<string | null>, merged: MaybeReactive<boolean> = false, enabled: MaybeReactive<boolean> = true) {
-  const key = computed(() => ['fee-catalog', resolveReactive(classId) || '', resolveReactive(departmentId) ?? '', !!resolveReactive(merged)])
+export function useFeeCatalog(
+  classId: MaybeReactive<string>,
+  departmentId: MaybeReactive<string | null>,
+  sectionId: MaybeReactive<string | null> = null,
+  merged: MaybeReactive<boolean> = false,
+  enabled: MaybeReactive<boolean> = true,
+) {
+  const key = computed(() => [
+    'fee-catalog',
+    resolveReactive(classId) || '',
+    resolveReactive(departmentId) ?? '',
+    resolveReactive(sectionId) ?? '',
+    !!resolveReactive(merged),
+  ])
   return useQuery({
     queryKey: key,
-    queryFn: () => paymentService.feeCatalog(resolveReactive(classId), resolveReactive(departmentId), !!resolveReactive(merged)),
+    queryFn: () =>
+      paymentService.feeCatalog(
+        resolveReactive(classId),
+        resolveReactive(departmentId),
+        resolveReactive(sectionId),
+        !!resolveReactive(merged),
+      ),
     enabled: computed(() => !!resolveReactive(classId) && resolveReactive(enabled)),
   })
 }
@@ -829,8 +855,8 @@ export function useFeeCatalogOverview() {
 export function useSaveFeeCatalog() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ classId, departmentId, fees }: { classId: string; departmentId: string | null; fees: { id?: string; name: string; amount: number; cycleDays?: number; isActive?: boolean }[] }) =>
-      paymentService.saveFeeCatalog(classId, departmentId, fees),
+    mutationFn: ({ classId, departmentId, sectionId, fees }: { classId: string; departmentId: string | null; sectionId: string | null; fees: { id?: string; name: string; amount: number; cycleDays?: number; isActive?: boolean }[] }) =>
+      paymentService.saveFeeCatalog(classId, departmentId, sectionId, fees),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['fee-catalog'] })
       qc.invalidateQueries({ queryKey: ['students'] })
@@ -858,6 +884,81 @@ export function useGenerateDues() {
       qc.invalidateQueries({ queryKey: ['dues'] })
       qc.invalidateQueries({ queryKey: ['fee-catalog'] })
     },
+  })
+}
+
+// ---------- ad-hoc extra fees ----------
+export function useExtraFees() {
+  return useQuery({
+    queryKey: ['extra-fees'],
+    queryFn: () => paymentService.extraFees(),
+  })
+}
+
+export function useExtraFeePreview(
+  classId: MaybeReactive<string>,
+  departmentId: MaybeReactive<string | null>,
+  sectionId: MaybeReactive<string | null>,
+  enabled: MaybeReactive<boolean> = true,
+) {
+  const key = computed(() => [
+    'extra-fee-preview',
+    resolveReactive(classId) || '',
+    resolveReactive(departmentId) ?? '',
+    resolveReactive(sectionId) ?? '',
+  ])
+  return useQuery({
+    queryKey: key,
+    queryFn: () =>
+      paymentService.extraFeePreview({
+        classId: resolveReactive(classId) || '',
+        departmentId: resolveReactive(departmentId),
+        sectionId: resolveReactive(sectionId),
+      }),
+    enabled: computed(() => resolveReactive(enabled)),
+  })
+}
+
+function useExtraFeeInvalidator() {
+  const qc = useQueryClient()
+  return () => {
+    qc.invalidateQueries({ queryKey: ['extra-fees'] })
+    qc.invalidateQueries({ queryKey: ['extra-fee-preview'] })
+    qc.invalidateQueries({ queryKey: ['students'] })
+    qc.invalidateQueries({ queryKey: ['dues'] })
+    qc.invalidateQueries({ queryKey: ['dashboard'] })
+  }
+}
+
+export function useCreateExtraFee() {
+  const invalidate = useExtraFeeInvalidator()
+  return useMutation({
+    mutationFn: (input: ExtraFeeInput) => paymentService.createExtraFee(input),
+    onSuccess: invalidate,
+  })
+}
+
+export function useApplyExtraFee() {
+  const invalidate = useExtraFeeInvalidator()
+  return useMutation({
+    mutationFn: (id: string) => paymentService.applyExtraFee(id),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRevertExtraFee() {
+  const invalidate = useExtraFeeInvalidator()
+  return useMutation({
+    mutationFn: (id: string) => paymentService.revertExtraFee(id),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDeleteExtraFee() {
+  const invalidate = useExtraFeeInvalidator()
+  return useMutation({
+    mutationFn: (id: string) => paymentService.deleteExtraFee(id),
+    onSuccess: invalidate,
   })
 }
 export function useFeeHeads() {
@@ -1262,6 +1363,19 @@ export function useDeleteAppUser() {
   return useMutation({
     mutationFn: (id: string) => userService.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['app-users'] }),
+  })
+}
+
+// ---------- the single school-admin login (super-admin System page) ----------
+export function useSchoolAdmin() {
+  return useQuery({ queryKey: ['school-admin'], queryFn: () => schoolAdminService.get() })
+}
+
+export function useUpdateSchoolAdmin() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: SchoolAdminInput) => schoolAdminService.update(input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['school-admin'] }),
   })
 }
 

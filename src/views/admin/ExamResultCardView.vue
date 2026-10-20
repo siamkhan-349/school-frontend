@@ -115,7 +115,7 @@ const { data: examData, isLoading: examLoading } = useExam(examId)
 const exam = computed(() => examData.value?.data)
 const { data: resultsData, isLoading: resultsLoading } = useExamResults(examId)
 const { data: classData } = useClasses()
-const { data: sectionData } = useSections(() => exam.value?.classId || undefined)
+const { data: sectionData } = useSections(() => exam.value?.classId || undefined, undefined, true)
 const { data: settingsData } = useSettings()
 const settings = computed(() => settingsData.value?.data)
 

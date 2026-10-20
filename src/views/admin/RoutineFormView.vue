@@ -21,7 +21,7 @@
             <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.label }}</option>
           </select>
         </label>
-        <label>Section
+        <label v-if="form.classId">Section
           <select v-model="form.sectionId" class="app-input__control">
             <option :value="null">Whole class</option>
             <option v-for="s in formSections" :key="s.id" :value="s.id">{{ s.label }}</option>
@@ -237,7 +237,7 @@ watch(classes, (rows) => {
   if (!form.classId && rows.length > 0) form.classId = rows[0]?.id ?? ''
 }, { immediate: true })
 
-const { data: formSectionData } = useSections(() => form.classId || undefined)
+const { data: formSectionData } = useSections(() => form.classId || undefined, undefined, true)
 const formSections = computed(() => formSectionData.value?.data ?? [])
 watch(() => form.classId, () => {
   form.sectionId = null

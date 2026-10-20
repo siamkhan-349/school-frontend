@@ -179,7 +179,7 @@ watch(() => form.classId, () => {
   form.departmentId = null
   form.includeCommon = true
 })
-const { data: formSectionData } = useSections(() => form.classId || undefined)
+const { data: formSectionData } = useSections(() => form.classId || undefined, undefined, true)
 const formSections = computed(() => formSectionData.value?.data ?? [])
 // Selecting a class defaults Section to A (first one if there is no A).
 watch(formSections, (list) => {
