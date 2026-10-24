@@ -12,6 +12,11 @@
         >
           <NavIcon :name="item.icon" />
           <span class="app-shell__link-label">{{ item.name }}</span>
+          <span
+            v-if="item.examEntry && examPending > 0"
+            class="app-shell__link-badge"
+            :title="`${examPending} pending`"
+          >{{ examPending > 9 ? '9+' : examPending }}</span>
         </RouterLink>
       </nav>
     </aside>
@@ -64,6 +69,7 @@ import { TEACHER_NAV_ITEMS } from '@/constants/navigation'
 import { satisfiesModuleGate } from '@/constants/modules'
 import { useAuthStore } from '@/stores/auth'
 import { useSchoolStore } from '@/stores/school'
+import { useTeacherExamSummary } from '@/composables/useQueries'
 import { useTheme } from '@/composables/useTheme'
 import { useMobileNav } from '@/composables/useMobileNav'
 import { usePageTitle } from '@/composables/usePageTitle'
@@ -84,6 +90,11 @@ const visibleNav = computed(() =>
       satisfiesModuleGate(item.module, (k) => school.hasModule(k)),
   ),
 )
+
+// Pending exam work for the sidebar badge. Business state, not read/unread:
+// the number falls on its own as the teacher saves setups and marks.
+const { data: examSummary } = useTeacherExamSummary(() => school.teacherExamAccess)
+const examPending = computed(() => examSummary.value?.data.pending ?? 0)
 
 const pageTitle = usePageTitle(visibleNav)
 

@@ -33,6 +33,7 @@
             <td v-if="school.hasModule('payroll')">{{ t.basicSalary ?? '—' }}</td>
             <td class="row-actions-cell">
               <span class="row-actions">
+              <button class="link-btn" type="button" @click="goDetail(t)">View</button>
               <button v-if="(t.kind || 'teacher') === 'teacher'" class="link-btn" type="button" @click="goSubjects(t)">Subjects</button>
               <button v-if="canManage" class="link-btn" type="button" @click="openEdit(t)">Edit</button>
               <button v-if="canManage" class="link-btn link-btn--danger" type="button" @click="askDelete(t.id, t.name)">Delete</button>
@@ -268,6 +269,9 @@ function openEdit(t: Teacher): void {
 // Open the subjects page for a teacher (from the list).
 function goSubjects(t: Teacher): void {
   router.push(`/admin/teachers/${t.id}/subjects`)
+}
+function goDetail(t: Teacher): void {
+  router.push(`/admin/teachers/${t.id}`)
 }
 
 async function saveForm(): Promise<void> {

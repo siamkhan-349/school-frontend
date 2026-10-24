@@ -66,6 +66,7 @@
           <AppButton type="button" :disabled="!staffDate" @click="attStep = 2">Next</AppButton>
         </div>
       </AppCard>
+
       <AppCard v-else :title="`Step 2 — Mark attendance (${staffDate})`">
         <div class="step-actions">
           <AppButton variant="ghost" type="button" @click="attStep = 1">← Change date</AppButton>
@@ -117,23 +118,61 @@
           <AppButton :loading="staffSaving" @click="saveStaff">Save {{ staffDate }}</AppButton>
         </div>
       </AppCard>
+
+      <AppCard v-if="attStep === 1" title="Staff attendance details">
+        <p class="muted small">Click "View attendance" to see a teacher/staff member's monthly attendance calendar.</p>
+        <AppSkeleton v-if="teacherLoading" variant="table" :rows="6" :cols="4" />
+        <table v-else class="table">
+          <thead>
+            <tr><th>Name</th><th>Type</th><th>Designation</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="t in teachers" :key="t.id">
+              <td>{{ t.name }}</td>
+              <td>{{ t.kind }}</td>
+              <td>{{ t.designation || '—' }}</td>
+              <td class="row-actions-cell">
+                <button class="link-btn" type="button" @click="router.push(`/admin/attendance/staff/${t.id}`)">
+                  View attendance
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!teachers.length"><td colspan="4" class="muted">No teachers/staff.</td></tr>
+          </tbody>
+        </table>
+      </AppCard>
     </template>
 
     <!-- Leaves -->
     <template v-else-if="tab === 'leaves'">
       <AppCard title="Leave Requests">
-        <AppSkeleton v-if="leaveLoading" variant="table" :rows="8" :cols="6" />
+        <div class="leave-filter">
+          <label>Status
+            <select v-model="leaveStatusFilter" class="app-input__control">
+              <option value="all">All</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+          </label>
+          <span class="muted small">{{ allLeaves.length }} shown</span>
+        </div>
+        <AppSkeleton v-if="leaveLoading" variant="table" :rows="8" :cols="7" />
         <table v-else class="table">
           <thead>
-            <tr><th>Teacher</th><th>Type</th><th>From → To</th><th>Days</th><th>Status</th><th></th></tr>
+            <tr><th>Teacher</th><th>Type</th><th>From → To</th><th>Days</th><th>Status</th><th>Reason / Note</th><th></th></tr>
           </thead>
           <tbody>
             <tr v-for="l in leaves" :key="l.id">
-              <td>{{ l.teacherName }}</td>
+              <td>
+                <div class="strong">{{ l.teacherName || '—' }}</div>
+                <div v-if="l.teacherDesignation" class="muted small">{{ l.teacherDesignation }}</div>
+              </td>
               <td>{{ l.type }}</td>
               <td>{{ l.startDate }} → {{ l.endDate }}</td>
               <td>{{ l.days }}</td>
               <td><span class="chip">{{ l.status }}</span></td>
+              <td>{{ l.note || l.reason || '—' }}</td>
               <td class="row-actions-cell">
                 <span class="row-actions">
                 <template v-if="l.status === 'pending'">
@@ -150,10 +189,11 @@
               </td>
             </tr>
             <tr v-if="leaves.length === 0">
-              <td colspan="6" class="muted">No leave requests.</td>
+              <td colspan="7" class="muted">No leave requests.</td>
             </tr>
           </tbody>
         </table>
+        <AppPagination v-model:page="leavePage" v-model:per-page="leavePerPage" :total="leaveTotal" :busy="leaveFetching" />
       </AppCard>
     </template>
   </div>
@@ -164,6 +204,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppPagination from '@/components/common/AppPagination.vue'
 import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import AppSpinner from '@/components/common/AppSpinner.vue'
 import FilterPanel from '@/components/common/FilterPanel.vue'
@@ -175,6 +216,7 @@ import {
   useStaffAttendance,
   useTeachers,
 } from '@/composables/useQueries'
+import { usePagedList } from '@/composables/usePagedList'
 import { useToast } from '@/composables/useToast'
 import type { AttendanceStatus, LeaveStatus } from '@/types/models'
 
@@ -197,7 +239,7 @@ const MONTHS = [
 const monthName = (m: number): string => MONTHS[m - 1] ?? `Month ${m}`
 const periodLabel = (m: number, y: number): string => `${monthName(m)} ${y}`
 
-const { data: teacherData } = useTeachers({ perPage: 500 })
+const { data: teacherData, isLoading: teacherLoading } = useTeachers({ perPage: 500 })
 const teachers = computed(() => teacherData.value?.data.items ?? [])
 
 const now = new Date()
@@ -239,14 +281,28 @@ function openMonthSheetOf(year: number, month: number): void {
   router.push(`/admin/payroll/sheet/${year}/${month}`)
 }
 
-const { data: leaveData, isLoading: leaveLoading } = useLeaves()
-const leaves = computed(() => leaveData.value?.data ?? [])
+const { page: leavePage, perPage: leavePerPage } = usePagedList(10)
+const leaveStatusFilter = ref<'all' | 'pending' | 'approved' | 'rejected'>('pending')
+const leaveParams = computed(() => ({
+  page: leavePage.value,
+  perPage: leavePerPage.value,
+  status: leaveStatusFilter.value === 'all' ? undefined : leaveStatusFilter.value,
+}))
+const { data: leaveData, isLoading: leaveLoading, isFetching: leaveFetching } = useLeaves(leaveParams, true)
+const allLeaves = computed(() => leaveData.value?.data ?? [])
+const filteredLeaves = computed(() => allLeaves.value)
+const pendingLeaveCount = computed(() => allLeaves.value.filter((l) => l.status === 'pending').length)
+const leaves = filteredLeaves
+const leaveTotal = computed(() => (leaveData.value as { pagination?: { total?: number } } | null)?.pagination?.total ?? allLeaves.value.length)
 const { mutateAsync: setLeaveStatus } = useLeaveStatus()
 const leaveBusyId = ref<string | null>(null)
+watch(leaveStatusFilter, () => {
+  leavePage.value = 1
+})
 async function decide(id: string, status: LeaveStatus): Promise<void> {
   leaveBusyId.value = id
   try {
-    await setLeaveStatus({ id, status })
+    await setLeaveStatus({ id, status, salaryDeductible: status === 'approved' })
     toast.success(`Leave ${status}`)
   } catch (e) {
     toast.error(e instanceof Error ? e.message : 'Failed')
@@ -320,6 +376,22 @@ async function saveStaff(): Promise<void> {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   margin-bottom: var(--spacing-md);
+}
+.leave-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+}
+.leave-filter label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+.small {
+  font-size: var(--font-size-xs);
 }
 .tabs {
   display: flex;

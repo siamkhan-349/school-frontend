@@ -6,6 +6,7 @@
         <AppButton variant="ghost" type="button" :disabled="total === 0" :loading="exporting" @click="exportCsv">CSV</AppButton>
         <AppButton variant="ghost" type="button" :disabled="total === 0" :loading="exporting" @click="exportPdf">PDF</AppButton>
         <AppButton v-if="canManage" variant="ghost" type="button" @click="goImport">Import</AppButton>
+        <AppButton v-if="canManage" variant="ghost" type="button" @click="goPromote">Promote</AppButton>
         <AppButton @click="goAdmit">+ Admit Student</AppButton>
       </div>
     </div>
@@ -73,6 +74,7 @@
               <span class="row-actions">
                 <button class="link-btn" type="button" @click="goDetails(s.id)">Details</button>
                 <button class="link-btn" type="button" @click="goEdit(s.id)">Edit</button>
+                <button v-if="canManage" class="link-btn" type="button" @click="goPromoteSingle(s.id, s.classId)">Promote</button>
                 <button v-if="canDelete" class="link-btn link-btn--danger" type="button" @click="askDelete(s.id, s.name)">Delete</button>
               </span>
             </td>
@@ -215,6 +217,14 @@ function goAdmit(): void {
 
 function goImport(): void {
   router.push('/admin/students/import')
+}
+
+function goPromote(): void {
+  router.push('/admin/students/promote')
+}
+
+function goPromoteSingle(studentId: string, classId: string): void {
+  router.push({ path: '/admin/students/promote', query: { studentId, classId } })
 }
 
 function goDetails(id: string): void {

@@ -31,6 +31,7 @@ const API_PREFIXES = [
   '/students',
   '/super-admin',
   '/system',
+  '/teacher-exams',
   '/teachers',
   '/teacher-subjects',
 ]

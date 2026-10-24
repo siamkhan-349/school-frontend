@@ -294,6 +294,8 @@ export interface Teacher {
   photoUrl?: string
   /** Salary-type master id ("" = none). */
   payTypeId?: string
+  /** Fixed / percent salary rule. */
+  salaryType?: string
   /** Salary-type master name (e.g. Monthly). */
   payType?: string
   basicSalary?: string
@@ -431,6 +433,32 @@ export interface TeacherExamStudent {
   roll?: number | null
   /** Keyed by exam-subject id. */
   marks: Record<string, TeacherExamMark>
+}
+
+/** One exam with pending work, from the teacher summary endpoint. */
+export interface TeacherExamWorkItem {
+  examId: string
+  examName: string
+  examDate: string
+  /** Subject rows still waiting for the teacher's numbers. */
+  setupSubjects: number
+  setupSubjectNames: string[]
+  /** Configured subject rows with students who have no saved mark yet. */
+  marksSubjects: number
+}
+
+/**
+ * Pending exam work for one teacher. Business state, not read/unread: the
+ * counts fall on their own as the teacher saves setups and marks.
+ */
+export interface TeacherExamSummary {
+  setupSubjects: number
+  setupExams: number
+  marksSubjects: number
+  marksExams: number
+  /** setupSubjects + marksSubjects — the sidebar badge number. */
+  pending: number
+  items: TeacherExamWorkItem[]
 }
 
 export interface TeacherExamMarkInput {
@@ -647,6 +675,8 @@ export type LeaveStatus = 'pending' | 'approved' | 'rejected'
   absent: number
   late: number
   leaveDays: number
+  /** All approved leaves in the month (informational), whether or not deductible. */
+  approvedLeaveDays?: number
   leaveDeduction: number
   /** Late rule result for this month: hajira days + the money they cut. */
   lateCutDays: number
@@ -662,7 +692,9 @@ export interface LeaveRequest {
   id: string
   teacherId: string
   teacherName: string
+  teacherDesignation?: string
   type: string
+  reason?: string
   startDate: string
   endDate: string
   days: number
@@ -809,4 +841,57 @@ export interface LedgerHead {
   id: number
   name: string
   kind: 'income' | 'expense'
+}
+
+/** Student class promotion — request & response types. */
+export interface StudentPromotionInput {
+  fromUnitId: string
+  toUnitId: string
+  sectionMap: Record<string, string>
+  departmentMap: Record<string, string>
+  studentIds: string[]
+  rollStrategy: 'merit' | 'manual'
+  feeHandling: 'new_structure' | 'carry_forward'
+  promotionDate: string
+  notes: string
+  /** Only used when feeHandling === 'new_structure' — specific fee catalog item IDs to include. */
+  selectedFeeIds?: string[]
+  /** Only used when rollStrategy === 'manual' — studentId -> roll number. */
+  manualRolls?: Record<string, number>
+}
+
+export interface StudentPromotionItem {
+  studentId: string
+  name: string
+  fromRoll: number | null
+  toRoll: number
+  toSection: string | null
+  toDepartment: string | null
+}
+
+export interface StudentPromotionResponse {
+  promoted: StudentPromotionItem[]
+  count: number
+  fromClass: string
+  toClass: string
+}
+
+export interface StudentPromotionRecord {
+  id: string
+  studentId: string
+  studentName: string
+  fromUnit: { id: string; label: string }
+  toUnit: { id: string; label: string }
+  fromSection: { id: string; label: string } | null
+  toSection: { id: string; label: string } | null
+  fromDepartment: { id: string; label: string } | null
+  toDepartment: { id: string; label: string } | null
+  fromRoll: number | null
+  toRoll: number | null
+  promotionDate: string
+  feeHandling: string
+  customTotalAmount: number | null
+  notes: string
+  promotedBy: { id: string; name: string } | null
+  createdAt: string
 }

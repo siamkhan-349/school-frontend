@@ -79,6 +79,13 @@
                     @click="openAssign(s)"
                   >Assign</button>
                   <button class="link-btn" type="button" :disabled="locked" @click="openFill(s)">Fill</button>
+                  <button
+                    class="link-btn link-btn--danger"
+                    type="button"
+                    :disabled="locked || exam.subjects.length <= 1"
+                    :title="locked ? 'Unpublish to change subjects' : exam.subjects.length <= 1 ? 'An exam needs at least one subject' : `Remove ${s.name} from this exam`"
+                    @click="askRemoveSubject(s)"
+                  >Remove</button>
                 </td>
               </tr>
             </tbody>
@@ -214,7 +221,7 @@
                 </select>
               </label>
             </template>
-            <label>Pass marks<input v-model.number="fillForm.passMarks" type="number" min="0" class="app-input__control" /></label>
+            <label v-if="fillForm.mode === 'both' && fillForm.passRule === 'combine'">Pass marks<input v-model.number="fillForm.passMarks" type="number" min="0" class="app-input__control" /></label>
             <p class="muted span">Full marks will be {{ fillFull }} (sum of the parts in use).</p>
           </div>
           <p v-if="fillError" class="error">{{ fillError }}</p>
@@ -257,6 +264,15 @@
       @publish-only="doPublish(false)"
       @publish-sms="doPublish(true)"
     />
+    <AppConfirmDialog
+      :open="removeAsk.open"
+      title="Remove subject?"
+      :message="`Remove ${removeAsk.name} from ${exam?.name ?? 'this exam'}? Any marks already entered for it will be deleted.`"
+      confirm-text="Remove"
+      :busy="removing"
+      @cancel="removeAsk.open = false"
+      @confirm="doRemoveSubject"
+    />
   </div>
 </template>
 
@@ -266,6 +282,7 @@ import { useQueryClient } from '@tanstack/vue-query'
 import { useRoute } from 'vue-router'
 import AppButton from '@/components/common/AppButton.vue'
 import AppCard from '@/components/common/AppCard.vue'
+import AppConfirmDialog from '@/components/common/AppConfirmDialog.vue'
 import AppPagination from '@/components/common/AppPagination.vue'
 import AppSkeleton from '@/components/common/AppSkeleton.vue'
 import PublishExamDialog from '@/components/common/PublishExamDialog.vue'
@@ -276,6 +293,7 @@ import {
   useExam,
   useExamStatus,
   usePatchExamSubject,
+  useRemoveExamSubject,
   useResultEntries,
   useSaveResultEntries,
   useSections,
@@ -474,7 +492,7 @@ function displayTotal(row: Row): number {
   if (singleSubject.value) return cellTotal(singleCell(row))
   return rowTotal(row)
 }
-// Same rule as backend subject_pass — live per the exam's bars.
+// Same rule as backend subject_pass — separate passes on parts only.
 function cellPassed(c: Cell): boolean | null {
   if (c.absent) return false
   const total = cellTotal(c)
@@ -483,7 +501,7 @@ function cellPassed(c: Cell): boolean | null {
   const cqOk = (Number(c.cqFull) || 0) <= 0 || (Number(c.cq) || 0) >= (Number(c.cqPass) || 0)
   const mcqOk = (Number(c.mcqFull) || 0) <= 0 || (Number(c.mcq) || 0) >= (Number(c.mcqPass) || 0)
   if (c.passRule === 'combine') return total >= (Number(c.pass) || 0)
-  return Boolean(cqOk && mcqOk && total >= (Number(c.pass) || 0))
+  return Boolean(cqOk && mcqOk)
 }
 
 const { mutateAsync: saveEntries, isPending: saving } = useSaveResultEntries()
@@ -650,26 +668,31 @@ async function saveFill(): Promise<void> {
   }
   let payload: SubjectConfigInput
   if (fillForm.mode === 'cq') {
+    const cqPass = Math.min(Number(fillForm.cqPass) || 0, full)
     payload = {
-      fullMarks: full, passMarks: Number(fillForm.passMarks) || 0,
-      cqFull: full, cqPass: Math.min(Number(fillForm.cqPass) || 0, full),
+      fullMarks: full, passMarks: cqPass,
+      cqFull: full, cqPass,
       mcqFull: 0, mcqPass: 0, passRule: 'separate',
     }
   } else if (fillForm.mode === 'mcq') {
+    const mcqPass = Math.min(Number(fillForm.mcqPass) || 0, full)
     payload = {
-      fullMarks: full, passMarks: Number(fillForm.passMarks) || 0,
+      fullMarks: full, passMarks: mcqPass,
       cqFull: 0, cqPass: 0,
-      mcqFull: full, mcqPass: Math.min(Number(fillForm.mcqPass) || 0, full),
+      mcqFull: full, mcqPass,
       passRule: 'separate',
     }
   } else {
     const combined = fillForm.passRule === 'combine'
+    const cqPass = Number(fillForm.cqPass) || 0
+    const mcqPass = Number(fillForm.mcqPass) || 0
     payload = {
-      fullMarks: full, passMarks: Number(fillForm.passMarks) || 0,
+      fullMarks: full,
+      passMarks: combined ? Number(fillForm.passMarks) || 0 : cqPass + mcqPass,
       cqFull: Number(fillForm.cqFull) || 0,
-      cqPass: combined ? 0 : Number(fillForm.cqPass) || 0,
+      cqPass: combined ? 0 : cqPass,
       mcqFull: Number(fillForm.mcqFull) || 0,
-      mcqPass: combined ? 0 : Number(fillForm.mcqPass) || 0,
+      mcqPass: combined ? 0 : mcqPass,
       passRule: fillForm.passRule,
     }
   }
@@ -680,6 +703,25 @@ async function saveFill(): Promise<void> {
     toast.success(`${s.name} saved`)
   } catch (e) {
     fillError.value = e instanceof Error ? e.message : 'Save failed'
+  }
+}
+
+// Remove a subject from an editable exam (its marks are deleted too).
+const { mutateAsync: removeSubject, isPending: removing } = useRemoveExamSubject()
+const removeAsk = reactive({ open: false, id: '', name: '' })
+function askRemoveSubject(s: ExamSubject): void {
+  if (locked.value || (exam.value?.subjects.length ?? 0) <= 1) return
+  removeAsk.id = s.id
+  removeAsk.name = s.name
+  removeAsk.open = true
+}
+async function doRemoveSubject(): Promise<void> {
+  try {
+    await removeSubject({ id: examId.value, subjectId: removeAsk.id })
+    removeAsk.open = false
+    toast.success(`${removeAsk.name} removed from the exam`)
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Remove failed')
   }
 }
 
@@ -1072,6 +1114,9 @@ async function saveAssign(): Promise<void> {
   color: var(--color-primary);
   font-size: var(--font-size-sm);
   text-decoration: none;
+}
+.link-btn--danger {
+  color: var(--color-danger);
 }
 .setup-card {
   margin-bottom: var(--spacing-lg);

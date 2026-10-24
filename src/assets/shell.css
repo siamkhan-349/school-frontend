@@ -139,6 +139,23 @@
   white-space: nowrap;
 }
 
+/* Pending-work count on a nav item (teacher Exam Marks). Sits at the far
+   right of the link; business state, so it disappears when the work does. */
+.app-shell__link-badge {
+  flex-shrink: 0;
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-danger);
+  color: var(--color-danger-contrast);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: 20px;
+  text-align: center;
+}
+
 /* Pinned sidebar footer (super-admin jump): sits below the scrollable nav,
    separated by a hairline, visible on every page. */
 .app-shell__link--super {

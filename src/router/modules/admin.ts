@@ -6,6 +6,7 @@ import ClassDetailView from '@/views/admin/ClassDetailView.vue'
 import AttendanceView from '@/views/admin/AttendanceView.vue'
 import AttendanceDayView from '@/views/admin/AttendanceDayView.vue'
 import StaffLiveAttendanceView from '@/views/admin/StaffLiveAttendanceView.vue'
+import StaffAttendanceDetailView from '@/views/admin/StaffAttendanceDetailView.vue'
 import StudentAttendanceDetailView from '@/views/admin/StudentAttendanceDetailView.vue'
 import DashboardView from '@/views/admin/DashboardView.vue'
 import EventsView from '@/views/admin/EventsView.vue'
@@ -41,9 +42,11 @@ import StudentCardsView from '@/views/admin/StudentCardsView.vue'
 import StudentDetailView from '@/views/admin/StudentDetailView.vue'
 import StudentEditView from '@/views/admin/StudentEditView.vue'
 import StudentImportView from '@/views/admin/StudentImportView.vue'
+import StudentPromoteView from '@/views/admin/StudentPromoteView.vue'
 import StudentsView from '@/views/admin/StudentsView.vue'
 import TeachersView from '@/views/admin/TeachersView.vue'
 import TeacherCreateView from '@/views/admin/TeacherCreateView.vue'
+import TeacherDetailView from '@/views/admin/TeacherDetailView.vue'
 import TeacherSubjectsView from '@/views/admin/TeacherSubjectsView.vue'
 import UsersView from '@/views/admin/UsersView.vue'
 
@@ -62,17 +65,20 @@ export const adminRoutes: RouteRecordRaw[] = [
       { path: 'students/new', component: StudentAdmitView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'core' } },
       { path: 'students/cards', component: StudentCardsView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'attendance' } },
       { path: 'students/import', component: StudentImportView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'core' } },
+      { path: 'students/promote', component: StudentPromoteView, meta: { requiresAuth: true, permission: 'admin.students.promote', module: 'core' } },
       { path: 'students/:id/edit', component: StudentEditView, meta: { requiresAuth: true, permission: 'admin.students.manage', module: 'core' } },
       { path: 'students/:id', component: StudentDetailView, meta: { requiresAuth: true, permission: 'admin.students.view', module: 'core' } },
       { path: 'teachers', component: TeachersView, meta: { requiresAuth: true, permission: 'admin.teachers.view', module: 'staff' } },
       { path: 'teachers/new', component: TeacherCreateView, meta: { requiresAuth: true, permission: 'admin.teachers.manage', module: 'staff' } },
       { path: 'teachers/:id/subjects', component: TeacherSubjectsView, meta: { requiresAuth: true, permission: 'admin.teachers.manage', module: 'staff' } },
+{ path: 'teachers/:id', component: TeacherDetailView, meta: { requiresAuth: true, permission: 'admin.teachers.view', module: 'staff' } },
       { path: 'users', component: UsersView, meta: { requiresAuth: true, permission: 'admin.users.view', module: 'users' } },
       { path: 'routine', component: RoutineView, meta: { requiresAuth: true, permission: 'admin.routine.view', module: 'routine' } },
       { path: 'routine/new', component: RoutineFormView, meta: { requiresAuth: true, permission: 'admin.routine.view', module: 'routine' } },
       { path: 'routine/:id/edit', component: RoutineFormView, meta: { requiresAuth: true, permission: 'admin.routine.view', module: 'routine' } },
       { path: 'attendance', component: AttendanceView, meta: { requiresAuth: true, permission: 'admin.attendance.view', module: 'attendance' } },
       { path: 'attendance/staff-live', component: StaffLiveAttendanceView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'payroll' } },
+{ path: 'attendance/staff/:id', component: StaffAttendanceDetailView, meta: { requiresAuth: true, permission: 'admin.dashboard.view', module: 'payroll' } },
       { path: 'attendance/student/:id', component: StudentAttendanceDetailView, meta: { requiresAuth: true, permission: 'admin.attendance.view', module: 'attendance' } },
       { path: 'attendance/day/:date', component: AttendanceDayView, meta: { requiresAuth: true, permission: 'admin.attendance.view', module: 'attendance' } },
       { path: 'exams', component: ExamsView, meta: { requiresAuth: true, permission: 'admin.results.view', module: 'exam_result' } },

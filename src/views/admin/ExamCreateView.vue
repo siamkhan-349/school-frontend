@@ -36,18 +36,38 @@
           <span>Include common subjects</span>
         </div>
         <template v-if="teacherMode && form.classId">
-          <div class="span subj-head"><strong>Subjects (auto)</strong></div>
+          <div class="span subj-head">
+            <strong>Subjects (auto)</strong>
+            <span v-if="leftOutSubjects.length" class="muted">{{ leftOutSubjects.length }} left out</span>
+          </div>
           <p class="muted span">
             Teacher entry is on: you create only the exam shell — each subject's teacher fills its
-            category, marks bars and student marks from the teacher panel. An exam with subjects
-            still waiting cannot be published.
+            category, marks bars and student marks from the teacher panel. Use × to leave a
+            subject out of this exam. An exam with subjects still waiting cannot be published.
           </p>
           <AppSkeleton v-if="classSubjectsLoading" class="span" variant="lines" :lines="4" />
           <p v-else-if="classSubjects.length === 0" class="muted span">No subjects set for this class — add them from Academics first.</p>
-          <div v-for="s in classSubjects" :key="s.id" class="span owner-row">
+          <div v-for="s in visibleClassSubjects" :key="s.id" class="span owner-row">
             <span class="owner-row__name">{{ s.label }}</span>
-            <span v-if="ownerOf(s.id)" class="chip chip--ok">{{ ownerOf(s.id) }}</span>
+            <span class="owner-row__actions">
+              <span v-if="ownerOf(s.id)" class="chip chip--ok">{{ ownerOf(s.id) }}</span>
+              <button
+                class="link-btn link-btn--danger"
+                type="button"
+                :disabled="visibleClassSubjects.length <= 1"
+                :title="visibleClassSubjects.length <= 1 ? 'An exam needs at least one subject' : `Leave ${s.label} out of this exam`"
+                :aria-label="`Leave ${s.label} out of this exam`"
+                @click="excludeSubject(s.label)"
+              >×</button>
+            </span>
           </div>
+          <template v-if="leftOutSubjects.length">
+            <p class="muted span left-out-head">Left out of this exam ({{ leftOutSubjects.length }})</p>
+            <div v-for="s in leftOutSubjects" :key="s.id" class="span owner-row owner-row--off">
+              <span class="owner-row__name">{{ s.label }}</span>
+              <button class="link-btn" type="button" @click="restoreSubject(s.label)">Restore</button>
+            </div>
+          </template>
         </template>
         <template v-else>
         <div v-if="form.classId" class="span subj-head">
@@ -136,6 +156,8 @@ const toast = useToast()
 const school = useSchoolStore()
 /** Teacher-entry mode: admin makes the shell, each subject's teacher fills it. */
 const teacherMode = computed(() => school.teacherExamEntry)
+/** Subject labels the admin left out of this exam (teacher-entry shell). */
+const excludedLabels = ref<string[]>([])
 
 const today = (): string => new Date().toISOString().slice(0, 10)
 const blankSubject = (): SubjectRow => ({
@@ -178,6 +200,7 @@ watch(() => form.classId, () => {
   form.sectionId = null
   form.departmentId = null
   form.includeCommon = true
+  excludedLabels.value = []
 })
 const { data: formSectionData } = useSections(() => form.classId || undefined, undefined, true)
 const formSections = computed(() => formSectionData.value?.data ?? [])
@@ -205,6 +228,27 @@ const classSubjects = computed(() => {
     return true
   })
 })
+// Department/common scope changes the auto list, so old exclusions no longer
+// apply. (Class changes are reset by the watch above.)
+watch([() => form.departmentId, () => form.includeCommon], () => {
+  excludedLabels.value = []
+})
+const visibleClassSubjects = computed(() =>
+  classSubjects.value.filter((s) => !excludedLabels.value.includes(s.label)),
+)
+const leftOutSubjects = computed(() =>
+  classSubjects.value.filter((s) => excludedLabels.value.includes(s.label)),
+)
+function excludeSubject(label: string): void {
+  if (visibleClassSubjects.value.length <= 1) {
+    toast.error('An exam needs at least one subject.')
+    return
+  }
+  if (!excludedLabels.value.includes(label)) excludedLabels.value.push(label)
+}
+function restoreSubject(label: string): void {
+  excludedLabels.value = excludedLabels.value.filter((l) => l !== label)
+}
 
 function rowFromLabel(label: string, group: string): SubjectRow {
   const row = blankSubject()
@@ -280,26 +324,33 @@ async function save(): Promise<void> {
       const full = Number(r.fullMarks) || 0
       const pass = Number(r.passMarks) || 0
       if (r.mode === 'cq') {
+        const cqPass = Math.min(Number(r.cqPass) || 0, full)
         subjects.push({
-          name, fullMarks: full, passMarks: pass,
-          cqFull: full, cqPass: Math.min(Number(r.cqPass) || 0, full),
+          name, fullMarks: full, passMarks: cqPass,
+          cqFull: full, cqPass,
           mcqFull: 0, mcqPass: 0, passRule: 'separate',
         })
       } else if (r.mode === 'mcq') {
+        const mcqPass = Math.min(Number(r.mcqPass) || 0, full)
         subjects.push({
-          name, fullMarks: full, passMarks: pass,
+          name, fullMarks: full, passMarks: mcqPass,
           cqFull: 0, cqPass: 0,
-          mcqFull: full, mcqPass: Math.min(Number(r.mcqPass) || 0, full),
+          mcqFull: full, mcqPass,
           passRule: 'separate',
         })
       } else {
         const combined = r.passRule !== 'separate'
+        const cqPass = Number(r.cqPass) || 0
+        const mcqPass = Number(r.mcqPass) || 0
         subjects.push({
-          name, fullMarks: full, passMarks: pass,
+          name,
+          fullMarks: full,
+          // Separate passes on each part alone — the total bar is combine-only.
+          passMarks: combined ? pass : cqPass + mcqPass,
           cqFull: Number(r.cqFull) || 0,
-          cqPass: combined ? 0 : Number(r.cqPass) || 0,
+          cqPass: combined ? 0 : cqPass,
           mcqFull: Number(r.mcqFull) || 0,
-          mcqPass: combined ? 0 : Number(r.mcqPass) || 0,
+          mcqPass: combined ? 0 : mcqPass,
           passRule: r.passRule,
         })
       }
@@ -319,8 +370,13 @@ async function save(): Promise<void> {
       departmentId: form.departmentId,
     }
     if (teacherMode.value) {
-      // Shell only — the backend seeds the class's subjects as pending rows.
-      await createExam({ ...base, includeCommon: form.includeCommon })
+      // Shell only — the backend seeds the class's subjects as pending rows,
+      // minus the ones the admin left out here.
+      await createExam({
+        ...base,
+        includeCommon: form.includeCommon,
+        excludeSubjects: excludedLabels.value,
+      })
       toast.success('Exam created — teachers will fill their subjects')
     } else {
       await createExam({ ...base, subjects })
@@ -462,6 +518,23 @@ async function save(): Promise<void> {
 }
 .link-btn--danger {
   color: var(--color-danger);
+}
+.link-btn:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+.owner-row__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: none;
+}
+.owner-row--off {
+  opacity: 0.65;
+  border-style: dashed;
+}
+.left-out-head {
+  margin-top: var(--spacing-sm);
 }
 .owner-row {
   display: flex;

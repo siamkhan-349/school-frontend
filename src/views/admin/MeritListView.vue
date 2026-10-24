@@ -136,14 +136,21 @@ function failReason(row: ExamResultRow, subjectId: string): string {
   const bar: ExamSubject | undefined = exam.value?.subjects.find((s) => s.id === subjectId)
   if (!bar) return ''
   const reasons: string[] = []
-  if ((Number(bar.cqFull) || 0) > 0 && (Number(c.cq) || 0) < (Number(bar.cqPass) || 0)) {
-    reasons.push(`CQ ${c.cq}<${bar.cqPass}`)
-  }
-  if ((Number(bar.mcqFull) || 0) > 0 && (Number(c.mcq) || 0) < (Number(bar.mcqPass) || 0)) {
-    reasons.push(`MCQ ${c.mcq}<${bar.mcqPass}`)
-  }
-  if ((Number(c.total) || 0) < (Number(bar.passMarks) || 0)) {
-    reasons.push(`Total ${c.total}<${bar.passMarks}`)
+  const cqFull = Number(bar.cqFull) || 0
+  const mcqFull = Number(bar.mcqFull) || 0
+  if (cqFull + mcqFull <= 0 || bar.passRule === 'combine') {
+    // Single bar / combined: the total decides.
+    if ((Number(c.total) || 0) < (Number(bar.passMarks) || 0)) {
+      reasons.push(`Total ${c.total}<${bar.passMarks}`)
+    }
+  } else {
+    // Separate: each part must pass on its own (no extra total bar).
+    if (cqFull > 0 && (Number(c.cq) || 0) < (Number(bar.cqPass) || 0)) {
+      reasons.push(`CQ ${c.cq}<${bar.cqPass}`)
+    }
+    if (mcqFull > 0 && (Number(c.mcq) || 0) < (Number(bar.mcqPass) || 0)) {
+      reasons.push(`MCQ ${c.mcq}<${bar.mcqPass}`)
+    }
   }
   return reasons.length > 0 ? ` (${reasons.join(', ')})` : ''
 }

@@ -25,7 +25,7 @@ import {
   type AppUserInput,
   type SchoolAdminInput,
 } from '@/services'
-import type { StudentBulkRecord, StudentInput, StudentStatus, TeacherInput } from '@/types/models'
+import type { StudentBulkRecord, StudentInput, StudentPromotionInput, StudentStatus, TeacherInput } from '@/types/models'
 import type { ListParams } from '@/types/api'
 import type { AttendanceMark, ExamStatus, ExamSubjectInput, ExtraFeeInput, LeaveRequest, LeaveStatus, RoutineInput, SalaryRecord, SchoolEvent, SubjectConfigInput, SubjectMarkInput, TeacherExamMarkInput } from '@/types/models'
 
@@ -116,6 +116,17 @@ export function useBulkStatusStudents() {
     }) => studentService.bulkStatus(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['students'] })
+    },
+  })
+}
+
+export function useBulkPromoteStudents() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: StudentPromotionInput) => studentService.bulkPromote(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['students'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
@@ -659,6 +670,7 @@ export function useCreateExam() {
       departmentId?: string | null;
       subjects?: ExamSubjectInput[]
       includeCommon?: boolean
+      excludeSubjects?: string[]
     }) => examService.create(input),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['exams'] }),
   })
@@ -711,12 +723,41 @@ export function usePatchExamSubject() {
   })
 }
 
+/** Leave a subject out of an editable exam (its marks go too). */
+export function useRemoveExamSubject() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, subjectId }: { id: string; subjectId: string }) =>
+      examService.removeSubject(id, subjectId),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ['exams'] })
+      qc.invalidateQueries({ queryKey: ['exam', vars.id] })
+      qc.invalidateQueries({ queryKey: ['result-entries'] })
+      qc.invalidateQueries({ queryKey: ['exam-results'] })
+    },
+  })
+}
+
 // ---------- teacher panel: own exam subjects + marks ----------
 export function useTeacherExams(enabled: MaybeReactive<boolean> = true) {
   return useQuery({
     queryKey: ['teacher-exams'],
     queryFn: () => teacherExamService.list(),
     enabled: computed(() => resolveReactive(enabled)),
+  })
+}
+
+/**
+ * Pending exam work for the sidebar badge + teacher dashboard card.
+ * Polls while the tab is open so an exam the admin just created shows up
+ * without a manual refresh (paused in background tabs by default).
+ */
+export function useTeacherExamSummary(enabled: MaybeReactive<boolean> = true) {
+  return useQuery({
+    queryKey: ['teacher-exam-summary'],
+    queryFn: () => teacherExamService.summary(),
+    enabled: computed(() => resolveReactive(enabled)),
+    refetchInterval: 60_000,
   })
 }
 
@@ -736,6 +777,7 @@ export function useSaveTeacherSubject() {
       teacherExamService.saveSubject(examId, subjectId, input),
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['teacher-exams'] })
+      qc.invalidateQueries({ queryKey: ['teacher-exam-summary'] })
       qc.invalidateQueries({ queryKey: ['teacher-exam', vars.examId] })
     },
   })
@@ -748,6 +790,7 @@ export function useSaveTeacherMarks() {
       teacherExamService.saveMarks(examId, subjectId, marks),
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ['teacher-exam', vars.examId] })
+      qc.invalidateQueries({ queryKey: ['teacher-exam-summary'] })
     },
   })
 }
@@ -1183,20 +1226,28 @@ export function usePaySalary() {
   })
 }
 
-export function useLeaves(enabled: MaybeReactive<boolean> = true) {
+type LeaveListParams = { perPage?: number; page?: number; status?: string; teacherId?: string }
+type LeaveSource = LeaveListParams | Ref<LeaveListParams> | (() => LeaveListParams)
+
+export function useLeaves(source: LeaveSource = {}, enabled: MaybeReactive<boolean> = true) {
+  const key = computed(() => ['leaves', resolveParams(source as unknown as ParamSource)])
   return useQuery({
-    queryKey: ['leaves'],
-    enabled: computed(() => resolveReactive(enabled)),
+    queryKey: key,
     queryFn: async () => {
-      const res = await payrollService.leaves()
-      // List endpoint envelopes rows as {items, pagination} — unwrap so
-      // consumers always get a plain array (same as salaries).
+      const p = resolveParams(source as unknown as ParamSource) as LeaveListParams
+      const res = await payrollService.leaves(p ?? { perPage: 500 })
       const raw = res.data as unknown
       const items = Array.isArray(raw)
         ? raw
         : (raw as { items?: LeaveRequest[] } | null)?.items ?? []
-      return { ...res, data: items }
+      const pagination =
+        !Array.isArray(raw) && raw && typeof raw === 'object'
+          ? (raw as { pagination?: unknown }).pagination
+          : undefined
+      return { ...res, data: items, pagination }
     },
+    placeholderData: (prev) => prev,
+    enabled: computed(() => resolveReactive(enabled)),
   })
 }
 
@@ -1213,8 +1264,8 @@ export function useApplyLeave() {
 export function useLeaveStatus() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: LeaveStatus }) =>
-      payrollService.setLeaveStatus(id, status),
+    mutationFn: ({ id, status, salaryDeductible }: { id: string; status: LeaveStatus; salaryDeductible?: boolean }) =>
+      payrollService.setLeaveStatus(id, status, salaryDeductible),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['leaves'] }),
   })
 }

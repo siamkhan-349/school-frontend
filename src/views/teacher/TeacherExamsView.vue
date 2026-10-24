@@ -12,7 +12,7 @@
     </AppCard>
 
     <template v-else-if="!selectedId">
-      <AppSkeleton v-if="listLoading" variant="table" :rows="8" :cols="6" />
+      <AppSkeleton v-if="listLoading" variant="table" :rows="8" :cols="7" />
       <p v-else-if="listErrorMessage" class="error">{{ listErrorMessage }}</p>
       <p v-else-if="exams.length === 0" class="muted">
         No exams with your subjects yet. The admin creates exams and assigns teachers from the exam page.
@@ -21,7 +21,7 @@
         <div class="table-scroll">
           <table class="table">
             <thead>
-              <tr><th>Exam</th><th>Date</th><th>Class</th><th>My Subjects</th><th>Status</th><th></th></tr>
+              <tr><th>Exam</th><th>Date</th><th>Class</th><th>My Subjects</th><th>To do</th><th>Status</th><th></th></tr>
             </thead>
             <tbody>
               <tr v-for="e in exams" :key="e.id">
@@ -35,6 +35,10 @@
                     class="chip"
                     :class="isConfigured(s) ? 'chip--ok' : 'chip--warn'"
                   >{{ s.name }}</span>
+                </td>
+                <td>
+                  <span v-if="workById.get(e.id)" class="chip chip--warn">{{ todoLabel(e.id) }}</span>
+                  <span v-else class="muted">—</span>
                 </td>
                 <td><span class="pill" :class="`pill--${e.status}`">{{ e.status }}</span></td>
                 <td><button class="link-btn" type="button" @click="openExam(e.id)">Open</button></td>
@@ -113,7 +117,7 @@
                   </select>
                 </label>
               </template>
-              <label>Pass marks<input v-model.number="cfg.passMarks" type="number" min="0" class="app-input__control" /></label>
+              <label v-if="cfg.mode === 'both' && cfg.passRule === 'combine'">Pass marks<input v-model.number="cfg.passMarks" type="number" min="0" class="app-input__control" /></label>
               <p class="muted">Full marks: {{ cfgFull }} (sum of the parts in use)</p>
               <p v-if="cfgError" class="error">{{ cfgError }}</p>
               <div class="form-actions">
@@ -215,11 +219,12 @@ import {
   useSaveTeacherMarks,
   useSaveTeacherSubject,
   useTeacherExam,
+  useTeacherExamSummary,
   useTeacherExams,
 } from '@/composables/useQueries'
 import { useToast } from '@/composables/useToast'
 import { useSchoolStore } from '@/stores/school'
-import type { ExamSubject, SubjectConfigInput, TeacherExamMarkInput } from '@/types/models'
+import type { ExamSubject, SubjectConfigInput, TeacherExamMarkInput, TeacherExamWorkItem } from '@/types/models'
 
 const toast = useToast()
 const school = useSchoolStore()
@@ -231,6 +236,24 @@ const listErrorMessage = computed(() => (listErrorObj.value instanceof Error ? l
 
 const { data: classData } = useClasses()
 const classLabel = (id: string): string => classData.value?.data.find((c) => c.id === id)?.label ?? id
+
+// Pending-work counts per exam — same source as the sidebar badge. The chips
+// above already flag unconfigured subject rows; this adds the marks side so
+// the teacher can see what actually blocks a publish.
+const { data: summaryData } = useTeacherExamSummary(() => school.teacherExamAccess)
+const workById = computed(() => {
+  const map = new Map<string, TeacherExamWorkItem>()
+  for (const item of summaryData.value?.data.items ?? []) map.set(item.examId, item)
+  return map
+})
+function todoLabel(examId: string): string {
+  const item = workById.value.get(examId)
+  if (!item) return '—'
+  const parts: string[] = []
+  if (item.setupSubjects > 0) parts.push(`${item.setupSubjects} setup`)
+  if (item.marksSubjects > 0) parts.push(`${item.marksSubjects} marks`)
+  return parts.join(' · ')
+}
 
 // ----- one exam: own subjects + marks -----
 const selectedId = ref('')
@@ -332,27 +355,35 @@ function buildCfgPayload(): SubjectConfigInput | null {
     return null
   }
   if (cfg.mode === 'cq') {
+    // Only CQ: the CQ pass is the subject's pass mark — no second number.
+    const cqPass = Math.min(Number(cfg.cqPass) || 0, full)
     return {
-      fullMarks: full, passMarks: Number(cfg.passMarks) || 0,
-      cqFull: full, cqPass: Math.min(Number(cfg.cqPass) || 0, full),
+      fullMarks: full, passMarks: cqPass,
+      cqFull: full, cqPass,
       mcqFull: 0, mcqPass: 0, passRule: 'separate',
     }
   }
   if (cfg.mode === 'mcq') {
+    // Only MCQ: the MCQ pass is the subject's pass mark — no second number.
+    const mcqPass = Math.min(Number(cfg.mcqPass) || 0, full)
     return {
-      fullMarks: full, passMarks: Number(cfg.passMarks) || 0,
+      fullMarks: full, passMarks: mcqPass,
       cqFull: 0, cqPass: 0,
-      mcqFull: full, mcqPass: Math.min(Number(cfg.mcqPass) || 0, full),
+      mcqFull: full, mcqPass,
       passRule: 'separate',
     }
   }
   const combined = cfg.passRule === 'combine'
+  const cqPass = Number(cfg.cqPass) || 0
+  const mcqPass = Number(cfg.mcqPass) || 0
   return {
-    fullMarks: full, passMarks: Number(cfg.passMarks) || 0,
+    fullMarks: full,
+    // Combine has one total bar; separate passes on each part alone.
+    passMarks: combined ? Number(cfg.passMarks) || 0 : cqPass + mcqPass,
     cqFull: Number(cfg.cqFull) || 0,
-    cqPass: combined ? 0 : Number(cfg.cqPass) || 0,
+    cqPass: combined ? 0 : cqPass,
     mcqFull: Number(cfg.mcqFull) || 0,
-    mcqPass: combined ? 0 : Number(cfg.mcqPass) || 0,
+    mcqPass: combined ? 0 : mcqPass,
     passRule: cfg.passRule,
   }
 }
@@ -422,7 +453,7 @@ function passed(r: TeacherRow): boolean {
   const cqOk = (Number(s.cqFull) || 0) <= 0 || (Number(r.cq) || 0) >= (Number(s.cqPass) || 0)
   const mcqOk = (Number(s.mcqFull) || 0) <= 0 || (Number(r.mcq) || 0) >= (Number(s.mcqPass) || 0)
   if (s.passRule === 'combine') return total >= (Number(s.passMarks) || 0)
-  return Boolean(cqOk && mcqOk && total >= (Number(s.passMarks) || 0))
+  return Boolean(cqOk && mcqOk)
 }
 
 const { mutateAsync: saveMarks, isPending: savingMarks } = useSaveTeacherMarks()

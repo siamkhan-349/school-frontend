@@ -46,12 +46,15 @@ import type {
   StudentInput,
   StudentStatus,
   StudentSubjectMarks,
+  StudentPromotionInput,
+  StudentPromotionResponse,
   Subject,
   SubjectConfigInput,
   SubjectMarkInput,
   Teacher,
   TeacherExam,
   TeacherExamMarkInput,
+  TeacherExamSummary,
   TeacherInput,
   TeacherSubject,
 } from '@/types/models'
@@ -108,6 +111,10 @@ export const studentService = {
       unitId: input.classId,
       batchId: input.sectionId,
     })
+  },
+  /** Promote a cohort from one class to the next. */
+  bulkPromote(input: StudentPromotionInput): Promise<ApiResponse<StudentPromotionResponse>> {
+    return apiClient.post<StudentPromotionResponse>('/students/bulk-promote', input)
   },
 }
 
@@ -269,6 +276,8 @@ export const examService = {
     /** Omit in teacher-entry mode: the backend seeds the class's subjects. */
     subjects?: ExamSubjectInput[]
     includeCommon?: boolean
+    /** Teacher-entry (shell) mode: labels to leave out of this exam. */
+    excludeSubjects?: string[]
   }): Promise<ApiResponse<Exam>> {
     return apiClient.post<Exam>('/results', input)
   },
@@ -283,6 +292,10 @@ export const examService = {
   /** Admin fallback: fill/replace one subject row in place (pre-publish). */
   patchSubject(id: string, subjectId: string, input: SubjectConfigInput): Promise<ApiResponse<ExamSubject>> {
     return apiClient.patch<ExamSubject>(`/results/${id}/subjects/${subjectId}`, input)
+  },
+  /** Leave a subject out of an editable exam (its marks go too). */
+  removeSubject(id: string, subjectId: string): Promise<ApiResponse<Exam>> {
+    return apiClient.delete<Exam>(`/results/${id}/subjects/${subjectId}`)
   },
   remove(id: string): Promise<ApiResponse<null>> {
     return apiClient.delete<null>(`/results/${id}`)
@@ -305,6 +318,10 @@ export const examService = {
 export const teacherExamService = {
   list(): Promise<ApiResponse<TeacherExam[]>> {
     return apiClient.get<TeacherExam[]>('/teacher-exams')
+  },
+  /** Pending setup/marks work — feeds the sidebar badge and dashboard card. */
+  summary(): Promise<ApiResponse<TeacherExamSummary>> {
+    return apiClient.get<TeacherExamSummary>('/teacher-exams/summary')
   },
   get(id: string): Promise<ApiResponse<TeacherExam>> {
     return apiClient.get<TeacherExam>(`/teacher-exams/${id}`)
@@ -592,6 +609,8 @@ export const payrollService = {
   update(id: string, input: Partial<{
     basic: number; allowance: number; deduction: number; bonus: number;
     paymentDate: string | null; notes: string; status: string;
+    presentDays: number; absentDays: number; lateDays: number;
+    lateCutDays: number; lateDeduction: number;
   }>): Promise<ApiResponse<SalaryRecord>> {
     return apiClient.patch<SalaryRecord>(`/salary/${id}`, input)
   },
@@ -611,16 +630,21 @@ export const payrollService = {
   }>> {
     return apiClient.get('/salary/sheet-draft', { params: { month, year } })
   },
-  leaves(perPage = 500): Promise<ApiResponse<LeaveRequest[]>> {
-    return apiClient.get<LeaveRequest[]>('/leaves', { params: { perPage } })
+  leaves(params?: { perPage?: number; page?: number; status?: string; teacherId?: string }): Promise<ApiResponse<LeaveRequest[]>> {
+    return apiClient.get<LeaveRequest[]>('/leaves', { params })
   },
   applyLeave(input: {
     teacherId: string; type: string; startDate: string; endDate: string; note: string
   }) {
     return apiClient.post('/leaves', input)
   },
-  setLeaveStatus(id: string, status: LeaveStatus) {
-    return apiClient.patch(`/leaves/${id}`, { status })
+  setLeaveStatus(id: string, status: LeaveStatus, salaryDeductible?: boolean) {
+    const body: { status: LeaveStatus; salaryDeductible?: boolean } = { status }
+    if (salaryDeductible !== undefined) body.salaryDeductible = salaryDeductible
+    return apiClient.patch(`/leaves/${id}`, body)
+  },
+  updateLeave(id: string, input: { salaryDeductible?: boolean; note?: string; type?: string; startDate?: string; endDate?: string }) {
+    return apiClient.patch(`/leaves/${id}`, input)
   },
 }
 

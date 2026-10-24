@@ -67,7 +67,12 @@
           <tbody>
             <tr v-for="(r, i) in newRows" :key="r.teacherId">
               <td>{{ i + 1 }}</td>
-              <td>{{ r.teacherName }}<span class="muted small"> · {{ r.kind }}</span></td>
+              <td>
+                <button class="link-btn" type="button" @click.stop="openDraftDetail(r)">
+                  {{ r.teacherName }}
+                </button>
+                <span class="muted small"> · {{ r.kind }}</span>
+              </td>
               <td><input v-model.number="r.basic" type="number" min="0" class="cell-input" /></td>
               <td><input v-model.number="r.allowance" type="number" min="0" class="cell-input" /></td>
               <td><input v-model.number="r.bonus" type="number" min="0" class="cell-input" /></td>
@@ -124,7 +129,11 @@
               @click="router.push(`/admin/payroll/salary/${s.id}`)"
             >
               <td>{{ i + 1 }}</td>
-              <td>{{ s.teacherName }}</td>
+              <td>
+                <button class="link-btn" type="button" @click.stop="router.push(`/admin/payroll/salary/${s.id}`)">
+                  {{ s.teacherName }}
+                </button>
+              </td>
               <td>{{ s.basic }}</td>
               <td>{{ s.allowance }}</td>
               <td><input v-model.number="editOf(s).bonus" type="number" min="0" class="cell-input" @click.stop /></td>
@@ -189,6 +198,7 @@
       @cancel="confirmUnpay.open = false"
       @confirm="doUnpay"
     />
+
   </div>
 </template>
 
@@ -224,6 +234,46 @@ interface DraftEdit extends SheetDraftRow {
 
 const route = useRoute()
 const router = useRouter()
+async function openDraftDetail(r: DraftEdit): Promise<void> {
+  // If a sheet already exists for this teacher, open the salary detail page
+  // directly (full page, not a modal).
+  const existingId = r.existingSheetId || savedSheetByTeacher.value[r.teacherId]
+  if (existingId) {
+    router.push(`/admin/payroll/salary/${existingId}`)
+    return
+  }
+  // Otherwise save the sheet (all rows, with current edits) first, then open
+  // this teacher's salary detail page.
+  saving.value = true
+  saveError.value = ''
+  try {
+    const res = await generateMonthSheets({
+      month: month.value,
+      year: year.value,
+      rows: newRows.value.map((row) => ({
+        teacherId: row.teacherId,
+        basic: num(row.basic),
+        allowance: num(row.allowance),
+        bonus: num(row.bonus),
+        deduction: num(row.deduction),
+      })),
+    })
+    const d = res.data
+    const sheet = (d?.sheets ?? []).find((s: { teacherId?: string; id?: string }) => s.teacherId === r.teacherId)
+    toast.success('Monthly sheet saved')
+    await loadDraft()
+    if (sheet?.id) {
+      router.push(`/admin/payroll/salary/${sheet.id}`)
+    } else {
+      saveResult.value = `${d?.created ?? 0} sheet(s) created`
+        + ((d?.skipped?.length ?? 0) ? `, ${d?.skipped.length} skipped` : '')
+    }
+  } catch (e) {
+    saveError.value = e instanceof Error ? e.message : 'Save failed'
+  } finally {
+    saving.value = false
+  }
+}
 const toast = useToast()
 const qc = useQueryClient()
 const month = computed(() => Number(route.params.month) || 0)
@@ -263,6 +313,13 @@ const draftTotalNet = computed(() => newRows.value.reduce((s, r) => s + rowNet(r
 
 const { data: salData, isLoading: savedLoading } = useSalaries(month, year)
 const savedRows = computed(() => salData.value?.data ?? [])
+const savedSheetByTeacher = computed(() => {
+  const map: Record<string, string> = {}
+  for (const s of savedRows.value) {
+    if (s.teacherId) map[s.teacherId] = s.id
+  }
+  return map
+})
 
 // Inline edits for created sheets (Bonus / Deduct fixed right here).
 const savedEdits = reactive<Record<string, { bonus: number; deduction: number }>>({})
@@ -555,6 +612,57 @@ function downloadPdf(): void {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(16, 24, 40, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+  padding: var(--spacing-lg);
+}
+.modal {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-lg);
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+}
+.modal--wide {
+  width: min(560px, 100%);
+}
+.modal__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-md);
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-xs) var(--spacing-md);
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-sm);
+}
+.detail-row--strong {
+  font-weight: var(--font-weight-semibold);
+}
+.detail-key {
+  color: var(--color-text-muted);
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
   gap: var(--spacing-sm);
   margin-top: var(--spacing-md);
 }
